@@ -26,6 +26,9 @@ assert(statsLine({ ...C, total: 10, heads: 6, tails: 4, streakFace: 1, streakLas
 assert(statsLine({ ...C, total: 10, heads: 8, tails: 2, streakFace: 3, streakLast: 'heads' }) === '总抛 10 · 正 8 · 反 2 · 连正×3', '连击 ≥2 展示连正×3');
 assert(statsLine({ ...C, total: 7, heads: 2, tails: 5, streakFace: 2, streakLast: 'tails' }) === '总抛 7 · 正 2 · 反 5 · 连反×2', '连反×2 正确');
 
+assert(statsLine({ total: 10, heads: 6, tails: 3, streakFace: 1, streakLast: 'heads', edgeStand: 1 }) === '总抛 10 · 正 6 · 反 3 · 立住 1', '站立单独计数展示');
+assert(statsLine({ total: 12, heads: 6, tails: 3, streakFace: 3, streakLast: 'heads', edgeStand: 3 }) === '总抛 12 · 正 6 · 反 3 · 立住 3 · 连正×3', '站立与连击并存时全段展示');
+
 console.log('— achievementsLine —');
 assert(achievementsLine({}) === '成就 0/16 · 虚位以待', '零解锁文案');
 const unl = { 'first-throw': 1000, 'throws-10': 2000, 'drop': 3000, 'streak-5-any': 500 };

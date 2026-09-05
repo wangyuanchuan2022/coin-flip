@@ -95,15 +95,21 @@ export class AchievementManager {
     this._save();
   }
 
-  // 结算：累计 + 连击更新 + 评估（standing = 立姿停稳的极稀有结算）
+  // 结算：standing = 立姿停稳的第三种结果（计入 total 与 edgeStand，
+  // 不进正/反桶，且重置连击——立住不属于任何连正面/连反面序列）
   onSettle(face, standing = false) {
     const c = this.state.counters;
     c.total += 1;
-    if (face === 'heads') c.heads += 1;
-    else c.tails += 1;
-    if (standing) c.edgeStand += 1;
-    c.streakFace = face === c.streakLast ? c.streakFace + 1 : 1;
-    c.streakLast = face;
+    if (standing) {
+      c.edgeStand += 1;
+      c.streakFace = 0;
+      c.streakLast = '';
+    } else {
+      if (face === 'heads') c.heads += 1;
+      else c.tails += 1;
+      c.streakFace = face === c.streakLast ? c.streakFace + 1 : 1;
+      c.streakLast = face;
+    }
     this.evaluate();
     this._save();
   }

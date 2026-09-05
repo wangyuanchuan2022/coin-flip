@@ -16,15 +16,16 @@ export function resolveGameUrl(loc) {
   return FALLBACK_URL;
 }
 
-// 统计行：零抛特殊文案；连击 ≥2 才展示连击段
+// 统计行：零抛特殊文案；站立单独计数；连击 ≥2 才展示连击段
 export function statsLine(c) {
   if (!c || !c.total) return '尚未开抛 · 快来试试手气';
-  const base = `总抛 ${c.total} · 正 ${c.heads} · 反 ${c.tails}`;
+  let s = `总抛 ${c.total} · 正 ${c.heads} · 反 ${c.tails}`;
+  if (c.edgeStand > 0) s += ` · 立住 ${c.edgeStand}`;
   if (c.streakFace >= 2) {
     const face = c.streakLast === 'heads' ? '正' : '反';
-    return `${base} · 连${face}×${c.streakFace}`;
+    s += ` · 连${face}×${c.streakFace}`;
   }
-  return base;
+  return s;
 }
 
 // 成就行：解锁数 k/15 + 最近解锁的最多 3 个成就名（按解锁时间倒序）
@@ -134,12 +135,24 @@ export function buildShareCard({ face, counters, url, unlocked, sceneImg }) {
   ctx.fillText(resultText, W / 2, 806);
 
   ctx.fillStyle = '#e8c86a';
-  ctx.font = `500 46px ${FONT}`;
-  ctx.fillText(statsLine(counters), W / 2, 876);
+  let sfs = 46;
+  ctx.font = `500 ${sfs}px ${FONT}`;
+  const statsStr = statsLine(counters);
+  while (sfs > 30 && ctx.measureText(statsStr).width > 940) {
+    sfs -= 2;
+    ctx.font = `500 ${sfs}px ${FONT}`;
+  }
+  ctx.fillText(statsStr, W / 2, 876);
 
   ctx.fillStyle = 'rgba(207,198,221,.95)';
-  ctx.font = `400 31px ${FONT}`;
-  ctx.fillText(achievementsLine(unlocked), W / 2, 944);
+  let afs = 31;
+  ctx.font = `400 ${afs}px ${FONT}`;
+  const achStr = achievementsLine(unlocked);
+  while (afs > 22 && ctx.measureText(achStr).width > 960) {
+    afs -= 1;
+    ctx.font = `400 ${afs}px ${FONT}`;
+  }
+  ctx.fillText(achStr, W / 2, 944);
 
   // 底部白卡：二维码 + 扫码文案
   const qw = 820;

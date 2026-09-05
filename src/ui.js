@@ -16,6 +16,7 @@ export class CoinUI {
       resultEn: document.getElementById('result-en'),
       statHeads: document.getElementById('stat-heads'),
       statTails: document.getElementById('stat-tails'),
+      statStanding: document.getElementById('stat-standing'),
       statTotal: document.getElementById('stat-total'),
       statRate: document.getElementById('stat-rate'),
       ratioHeads: document.getElementById('ratio-heads'),
@@ -89,10 +90,15 @@ export class CoinUI {
     this.els.resultEn.textContent = face === 'heads' ? 'HEADS' : 'TAILS';
   }
 
-  record(face) {
-    this.stats.total += 1;
-    if (face === 'heads') this.stats.heads += 1;
-    else this.stats.tails += 1;
+  record(face, standing = false) {
+    // 站立是第三种结果：单独计数，不进正/反桶
+    if (standing) {
+      this.stats.standing = (this.stats.standing || 0) + 1;
+    } else if (face === 'heads') {
+      this.stats.heads = (this.stats.heads || 0) + 1;
+    } else {
+      this.stats.tails = (this.stats.tails || 0) + 1;
+    }
     this._saveStats();
     this._renderStats();
   }
@@ -100,12 +106,14 @@ export class CoinUI {
   _loadStats() {
     try {
       const raw = localStorage.getItem(STATS_KEY);
-      this.stats = raw ? JSON.parse(raw) : { heads: 0, tails: 0 };
+      this.stats = raw ? JSON.parse(raw) : { heads: 0, tails: 0, standing: 0 };
       if (typeof this.stats.heads !== 'number' || typeof this.stats.tails !== 'number') {
         throw new Error('bad stats');
       }
+      // 旧存档迁移：站立字段补 0（v12 前的存档没有该桶）
+      if (typeof this.stats.standing !== 'number') this.stats.standing = 0;
     } catch {
-      this.stats = { heads: 0, tails: 0 };
+      this.stats = { heads: 0, tails: 0, standing: 0 };
     }
   }
 
@@ -118,13 +126,16 @@ export class CoinUI {
   }
 
   _renderStats() {
-    const { heads, tails } = this.stats;
-    const total = heads + tails;
+    // 站立是第三种结果：总计 = 正 + 反 + 站立；正面率只按正/反两面计算
+    const { heads, tails, standing } = this.stats;
+    const faces = heads + tails;
+    const total = faces + (standing || 0);
     this.els.statHeads.textContent = String(heads);
     this.els.statTails.textContent = String(tails);
+    this.els.statStanding.textContent = String(standing || 0);
     this.els.statTotal.textContent = String(total);
-    this.els.statRate.textContent = total ? Math.round((heads / total) * 100) + '%' : '—';
-    const headsPct = total ? (heads / total) * 100 : 50;
+    this.els.statRate.textContent = faces ? Math.round((heads / faces) * 100) + '%' : '—';
+    const headsPct = faces ? (heads / faces) * 100 : 50;
     this.els.ratioHeads.style.width = headsPct + '%';
   }
 

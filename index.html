@@ -261,6 +261,7 @@
   .stat .value { font-family: var(--serif); font-size: 24px; font-weight: 700; }
   .stat.heads .value { color: var(--gold); }
   .stat.tails .value { color: var(--silver); }
+  .stat.standing .value { color: #8fd3ff; }
   .stat-center { text-align: center; }
   .stat-center .value { font-size: 20px; }
   #ratio-bar {
@@ -462,13 +463,14 @@
           <path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>
         </svg>
         <span>成 就</span>
-        <span id="achv-count" class="achv-count">0/15</span>
+        <span id="achv-count" class="achv-count">0/16</span>
       </button>
       <div class="stats-row">
         <div class="stat heads"><span class="label">正面</span><span class="value" id="stat-heads">0</span></div>
+        <div class="stat tails"><span class="label">反面</span><span class="value" id="stat-tails">0</span></div>
+        <div class="stat stat-center standing"><span class="label">站立</span><span class="value" id="stat-standing">0</span></div>
         <div class="stat stat-center"><span class="label">总计</span><span class="value" id="stat-total">0</span></div>
         <div class="stat stat-center"><span class="label">正面率</span><span class="value" id="stat-rate">—</span></div>
-        <div class="stat tails"><span class="label">反面</span><span class="value" id="stat-tails">0</span></div>
       </div>
       <div id="ratio-bar"><div id="ratio-heads"></div></div>
       <p id="status-line">点击按钮、按下空格或直接点击台面抛掷</p>

@@ -163,6 +163,8 @@ const KEY = 'coin-flip-achievements-v1';
   m.onSettle('tails', true);
   assert(has(m, 'edge-stand'), 'edge-stand unlocked on standing settle');
   assert(m.counters.edgeStand === 1, 'edgeStand counter incremented');
+  assert(m.counters.tails === 0 && m.counters.heads === 1, 'standing is a third outcome: NOT counted into heads/tails');
+  assert(m.counters.streakFace === 0 && m.counters.streakLast === '', 'standing resets the face streak');
   const es = ACHIEVEMENTS.find((a) => a.id === 'edge-stand');
   assert(es.hidden === true, 'edge-stand is a hidden achievement');
   const [cur, goal] = m.progress(es);
