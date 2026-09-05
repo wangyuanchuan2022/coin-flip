@@ -177,6 +177,15 @@ export class CoinPhysics {
       }
     }
 
+    // 立姿稳态辅助：姿态接近立住且近乎静止时，额外抑制角速度——
+    // 数值抖动会在 0.45s 停稳计时内把薄圆柱推倒，这一点点阻尼让
+    // 「真的立住了」这个极稀有事件可以停满计时触发结算
+    const standDot = this._readFace();
+    if (Math.abs(standDot) < 0.25 && b.velocity.lengthSquared() < 0.02) {
+      const assist = Math.exp(-6 * dt);
+      b.angularVelocity.scale(assist, b.angularVelocity);
+    }
+
     const slow =
       b.velocity.lengthSquared() < 0.03 &&
       b.angularVelocity.lengthSquared() < 0.06 &&
@@ -196,9 +205,13 @@ export class CoinPhysics {
     }
 
     if (this.stillTimer > 0.45 || asleep) {
-      const dot = this._readFace();
-      if (Math.abs(dot) < 0.55) {
-        // 极罕见：斜靠/侧立，施加微扰让它倒下后继续等
+      if (Math.abs(standDot) < 0.25) {
+        // 立姿停稳：极稀有隐藏事件——结算为「立住了」，不再击倒
+        this._settle(true);
+        return;
+      }
+      if (Math.abs(standDot) < 0.55) {
+        // 斜靠（约 56°~75°）：无法持久静止，施加微扰让它倒下后继续等
         b.wakeUp();
         b.applyImpulse(new CANNON.Vec3(rand(-1, 1), 0, rand(-1, 1)).scale(2.5 * COIN.mass * 0.05));
         b.angularVelocity.x += rand(-3, 3);
@@ -210,11 +223,11 @@ export class CoinPhysics {
     }
   }
 
-  _settle() {
+  _settle(standing = false) {
     this.state = 'settled';
     const dot = this._readFace();
     const face = dot > 0 ? 'heads' : 'tails';
-    if (this.onSettle) this.onSettle(face);
+    if (this.onSettle) this.onSettle(face, standing);
   }
 
   // 硬币滚出台面掉落：摆回中心平躺，等待下一次抛掷

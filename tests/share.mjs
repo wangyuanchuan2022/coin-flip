@@ -27,10 +27,10 @@ assert(statsLine({ ...C, total: 10, heads: 8, tails: 2, streakFace: 3, streakLas
 assert(statsLine({ ...C, total: 7, heads: 2, tails: 5, streakFace: 2, streakLast: 'tails' }) === '总抛 7 · 正 2 · 反 5 · 连反×2', '连反×2 正确');
 
 console.log('— achievementsLine —');
-assert(achievementsLine({}) === '成就 0/15 · 虚位以待', '零解锁文案');
+assert(achievementsLine({}) === '成就 0/16 · 虚位以待', '零解锁文案');
 const unl = { 'first-throw': 1000, 'throws-10': 2000, 'drop': 3000, 'streak-5-any': 500 };
 const line = achievementsLine(unl);
-assert(line.startsWith('成就 4/15'), '解锁计数 4/15');
+assert(line.startsWith('成就 4/16'), '解锁计数 4/16');
 assert(line.includes('桌面之外') && line.includes('小试手气') && line.includes('命运之始'), '最近 3 个按时间倒序（桌面之外、小试手气、命运之始）');
 assert(!line.includes('五福同临'), '最早的成就（五福同临）不出现');
 

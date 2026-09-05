@@ -73,12 +73,18 @@ export class CoinUI {
     this.els.status.textContent = message || '点击按钮、按下空格或直接点击台面抛掷';
   }
 
-  showResult(face) {
+  showResult(face, standing = false) {
     const panel = this.els.resultPanel;
     panel.classList.remove('heads', 'tails', 'show');
     // 强制重排以重启动画
     void panel.offsetWidth;
     panel.classList.add(face === 'heads' ? 'heads' : 'tails', 'show');
+    if (standing) {
+      // 极稀有立姿结算：专属文案
+      this.els.resultFace.textContent = '立 住 了';
+      this.els.resultEn.textContent = 'STANDING!';
+      return;
+    }
     this.els.resultFace.textContent = face === 'heads' ? '正 面' : '反 面';
     this.els.resultEn.textContent = face === 'heads' ? 'HEADS' : 'TAILS';
   }

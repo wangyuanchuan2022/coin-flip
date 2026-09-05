@@ -114,8 +114,8 @@ function boot() {
 
   // 结算/掉落只推进状态并记账，可见与可听的反馈统一延迟到「画面演到该时刻」再触发
   // （碰撞声已由渲染延迟对齐，结算光环/揭晓音/结果面板若立即触发会提前于画面）
-  physics.onSettle = (face) => {
-    pendingSettle = { face, pos: physics.coinBody.position.clone(), at: scene.simClock };
+  physics.onSettle = (face, standing) => {
+    pendingSettle = { face, pos: physics.coinBody.position.clone(), at: scene.simClock, standing: !!standing };
   };
 
   physics.onDrop = () => {
@@ -123,16 +123,16 @@ function boot() {
   };
 
   function fireSettle() {
-    const { face, pos } = pendingSettle;
+    const { face, pos, standing } = pendingSettle;
     pendingSettle = null;
     lastFace = face;
-    achievements.onSettle(face);
+    achievements.onSettle(face, standing);
     scene.setRestLook(pos);
     scene.showRingAt(pos);
-    if (!prefersReducedMotion) scene.burst(pos);
+    if (!prefersReducedMotion) scene.burst(pos, standing); // 立住时切换为冲天金柱特效
     sound.reveal(face);
     ui.record(face);
-    ui.showResult(face);
+    ui.showResult(face, standing);
     ui.enterIdle();
   }
 

@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v11'; // v11: 相机机位真跟随硬币移动（水平 0.55x/垂直 0.3x，静止回位）
+const CACHE = 'coin-flip-v12'; // v12: 立住彩蛋——立姿停稳结算 + 冲天金柱特效 + 隐藏成就「一线之间」
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {

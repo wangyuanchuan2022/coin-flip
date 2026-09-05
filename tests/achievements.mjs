@@ -1,4 +1,4 @@
-// tests/achievements.mjs — 成就系统逻辑测试：全 15 枚条件、连击/掉落边界、精确时点、存档迁移
+// tests/achievements.mjs — 成就系统逻辑测试：全 16 枚条件、连击/掉落边界、精确时点、存档迁移
 // 运行：node tests/achievements.mjs
 import { AchievementManager, ACHIEVEMENTS } from '../src/achievements.js';
 
@@ -152,6 +152,29 @@ const KEY = 'coin-flip-achievements-v1';
   m.evaluate();
   m.evaluate();
   assert(calls === 1, 'onUnlock fired once despite repeated evaluate');
+}
+
+// —— 用例 10：立住彩蛋（edgeStand 计数 + 隐藏成就解锁 + 存档迁移补默认）——
+{
+  const m = freshMgr();
+  assert(!has(m, 'edge-stand'), 'edge-stand starts locked');
+  m.onSettle('heads', false);
+  assert(!has(m, 'edge-stand'), 'edge-stand NOT on normal settle');
+  m.onSettle('tails', true);
+  assert(has(m, 'edge-stand'), 'edge-stand unlocked on standing settle');
+  assert(m.counters.edgeStand === 1, 'edgeStand counter incremented');
+  const es = ACHIEVEMENTS.find((a) => a.id === 'edge-stand');
+  assert(es.hidden === true, 'edge-stand is a hidden achievement');
+  const [cur, goal] = m.progress(es);
+  assert(cur === 1 && goal === 1, 'edge-stand progress [1,1] after unlock');
+  // 存档迁移：旧档缺 edgeStand 字段补 0，且解锁链路可用
+  const store = {};
+  globalThis.localStorage = mockLS(store);
+  store[KEY] = JSON.stringify({ unlocked: {}, counters: { total: 3, heads: 2, tails: 1 } });
+  const m2 = new AchievementManager();
+  assert(m2.counters.edgeStand === 0, 'migrated counters get edgeStand=0');
+  m2.onSettle('heads', true);
+  assert(has(m2, 'edge-stand'), 'edge-stand unlockable on migrated save');
 }
 
 console.log('--- achievements test report ---');

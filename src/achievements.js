@@ -23,11 +23,13 @@ export const ACHIEVEMENTS = [
   { id: 'balance', glyph: '衡', name: '完美均衡', desc: '累计 100 次时正反恰好各 50', hidden: true, check: (c) => c.total === 100 && c.heads === 50 && c.tails === 50, progress: (c) => [Math.min(c.total, 100), 100] },
   { id: 'midnight', glyph: '夜', name: '午夜抉择', desc: '在午夜 0 点至 1 点间抛掷', hidden: true, check: (c) => c.midnight >= 1, progress: (c) => [Math.min(c.midnight, 1), 1] },
   { id: 'desk-20', glyph: '指', name: '指尖命运', desc: '直接点击台面抛掷 20 次', hidden: true, check: (c) => c.desk >= 20, progress: (c) => [Math.min(c.desk, 20), 20] },
+  { id: 'edge-stand', glyph: '立', name: '一线之间', desc: '硬币以立姿停稳在桌面上（极稀有）', hidden: true, check: (c) => c.edgeStand >= 1, progress: (c) => [Math.min(c.edgeStand, 1), 1] },
 ];
 
 const EMPTY_COUNTERS = {
   total: 0, heads: 0, tails: 0, drop: 0, heavy: 0,
   silent: 0, desk: 0, midnight: 0, streakFace: 0, streakLast: '',
+  edgeStand: 0,
 };
 
 export class AchievementManager {
@@ -93,12 +95,13 @@ export class AchievementManager {
     this._save();
   }
 
-  // 结算：累计 + 连击更新 + 评估
-  onSettle(face) {
+  // 结算：累计 + 连击更新 + 评估（standing = 立姿停稳的极稀有结算）
+  onSettle(face, standing = false) {
     const c = this.state.counters;
     c.total += 1;
     if (face === 'heads') c.heads += 1;
     else c.tails += 1;
+    if (standing) c.edgeStand += 1;
     c.streakFace = face === c.streakLast ? c.streakFace + 1 : 1;
     c.streakLast = face;
     this.evaluate();

@@ -250,16 +250,23 @@ export class CoinScene {
     this.resultRing.visible = false;
   }
 
-  // 金色粒子迸发（结算庆祝）
-  burst(pos) {
+  // 金色粒子迸发（结算庆祝）；edge = 立住彩蛋：冲天金柱，更高更久
+  burst(pos, edge = false) {
+    if (edge) this.particleDuration = 1.7;
+    else this.particleDuration = 1.15;
     for (let i = 0; i < this.particleCount; i++) {
       const i3 = i * 3;
       this.particlePos[i3] = pos.x;
-      this.particlePos[i3 + 1] = pos.y + 0.15;
+      this.particlePos[i3 + 1] = pos.y + (edge ? 0.5 : 0.15);
       this.particlePos[i3 + 2] = pos.z;
       const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 2.4;
-      this.particleVel[i].set(Math.cos(a) * r, 2.4 + Math.random() * 3.2, Math.sin(a) * r);
+      if (edge) {
+        const r = Math.random() * 3.4;
+        this.particleVel[i].set(Math.cos(a) * r * 0.8, 3.4 + Math.random() * 5.4, Math.sin(a) * r * 0.8);
+      } else {
+        const r = Math.random() * 2.4;
+        this.particleVel[i].set(Math.cos(a) * r, 2.4 + Math.random() * 3.2, Math.sin(a) * r);
+      }
       this.particleLife[i] = this.particleDuration * (0.6 + Math.random() * 0.4);
     }
     this.particles.geometry.attributes.position.needsUpdate = true;
