@@ -77,8 +77,9 @@ function roundRectPath(ctx, x, y, w, h, r) {
 
 const FONT = '"PingFang SC","Microsoft YaHei",system-ui,sans-serif';
 
-// 分享卡片：1080×1350 海报（结果 + 统计 + 成就 + 内嵌二维码）
-export function buildShareCard({ face, counters, url, unlocked }) {
+// 分享卡片：1080×1350 海报（真实渲染场景为底 + 结果 + 统计 + 成就 + 内嵌二维码）
+// sceneImg 为游戏画面帧（openShare 里由 capture() 回调捕获）；缺省/失败退回渐变底
+export function buildShareCard({ face, counters, url, unlocked, sceneImg }) {
   const W = 1080;
   const H = 1350;
   const canvas = document.createElement('canvas');
@@ -86,11 +87,27 @@ export function buildShareCard({ face, counters, url, unlocked }) {
   canvas.height = H;
   const ctx = canvas.getContext('2d');
 
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#17121f');
-  g.addColorStop(1, '#2a2033');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+  if (sceneImg && (sceneImg.naturalWidth || sceneImg.width)) {
+    // 真实渲染场景 cover-裁切铺满，再压一层上浅下深的可读性遮罩
+    const iw = sceneImg.naturalWidth || sceneImg.width;
+    const ih = sceneImg.naturalHeight || sceneImg.height;
+    const k = Math.max(W / iw, H / ih);
+    const dw = iw * k;
+    const dh = ih * k;
+    ctx.drawImage(sceneImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    const scrim = ctx.createLinearGradient(0, 0, 0, H);
+    scrim.addColorStop(0, 'rgba(23,18,31,.66)');
+    scrim.addColorStop(0.5, 'rgba(23,18,31,.42)');
+    scrim.addColorStop(1, 'rgba(23,18,31,.8)');
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#17121f');
+    g.addColorStop(1, '#2a2033');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
   ctx.strokeStyle = 'rgba(232,200,106,.35)';
   ctx.lineWidth = 2;
   ctx.strokeRect(30, 30, W - 60, H - 60);
@@ -175,7 +192,7 @@ export function buildShareCard({ face, counters, url, unlocked }) {
 
 // ———————— 以下为分享面板 UI（依赖 DOM） ————————
 
-export function openShare({ url, face, counters, unlocked }) {
+export function openShare({ url, face, counters, unlocked, capture }) {
   const root = document.createElement('div');
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
@@ -210,15 +227,48 @@ export function openShare({ url, face, counters, unlocked }) {
       `<button type="button" id="share-native" style="${ghostCss}display:none;">系统分享</button>` +
     '</div>';
 
-  // 卡片图
-  const canvas = buildShareCard({ face, counters, url, unlocked });
-  const dataUrl = canvas.toDataURL('image/png');
+  // 卡片图（异步：捕获真实场景帧并等解码完成后绘制；捕获失败退回渐变底）
+  let sharePng = '';
   const slot = card.querySelector('#share-card-slot');
-  const img = new Image();
-  img.src = dataUrl;
-  img.alt = '分享卡片';
-  img.style.cssText = 'width:100%;max-width:250px;border-radius:12px;border:1px solid rgba(255,255,255,.14);';
-  slot.appendChild(img);
+  const saveBtn = card.querySelector('#share-save');
+  const native = card.querySelector('#share-native');
+  saveBtn.disabled = true;
+  saveBtn.style.opacity = '.5';
+  slot.innerHTML = '<div style="opacity:.6;font-size:13px;padding:20px 0;">生成卡片中…</div>';
+  (async () => {
+    try {
+      let sceneImg = null;
+      if (typeof capture === 'function') {
+        const im = new Image();
+        im.src = capture();
+        await im.decode();
+        sceneImg = im;
+      }
+      sharePng = buildShareCard({ face, counters, url, unlocked, sceneImg }).toDataURL('image/png');
+    } catch (e) {
+      console.error('share card build failed, fallback gradient:', e);
+      sharePng = buildShareCard({ face, counters, url, unlocked, sceneImg: null }).toDataURL('image/png');
+    }
+    const img = new Image();
+    img.src = sharePng;
+    img.alt = '分享卡片';
+    img.style.cssText = 'width:100%;max-width:250px;border-radius:12px;border:1px solid rgba(255,255,255,.14);';
+    slot.innerHTML = '';
+    slot.appendChild(img);
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '';
+    if (navigator.canShare) {
+      try {
+        const file = new File([dataUrlToBlob(sharePng)], 'coin-flip-share.png', { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          native.style.display = '';
+          native.addEventListener('click', () => {
+            navigator.share({ files: [file], title: '抛硬币模拟器', text: '来试试这个物理抛硬币：', url }).catch(() => { /* 用户取消 */ });
+          });
+        }
+      } catch { /* 分享能力探测失败则保持隐藏 */ }
+    }
+  })();
 
   function close() {
     window.removeEventListener('keydown', onKey, true);
@@ -241,24 +291,12 @@ export function openShare({ url, face, counters, unlocked }) {
   });
 
   card.querySelector('#share-save').addEventListener('click', () => {
+    if (!sharePng) return; // 卡片尚未生成完成
     const a = document.createElement('a');
     a.download = 'coin-flip-share.png';
-    a.href = dataUrl;
+    a.href = sharePng;
     a.click();
   });
-
-  const native = card.querySelector('#share-native');
-  if (navigator.canShare) {
-    try {
-      const file = new File([dataUrlToBlob(dataUrl)], 'coin-flip-share.png', { type: 'image/png' });
-      if (navigator.canShare({ files: [file] })) {
-        native.style.display = '';
-        native.addEventListener('click', () => {
-          navigator.share({ files: [file], title: '抛硬币模拟器', text: '来试试这个物理抛硬币：', url }).catch(() => { /* 用户取消 */ });
-        });
-      }
-    } catch { /* 分享能力探测失败则保持隐藏 */ }
-  }
 }
 
 function dataUrlToBlob(dataUrl) {

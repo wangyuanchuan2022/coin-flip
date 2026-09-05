@@ -332,6 +332,14 @@ export class CoinScene {
     this.renderer.render(this.scene, this.camera);
   }
 
+  // 同步重绘当前帧并导出 PNG 数据 URL（分享卡片背景用）。
+  // 不开 preserveDrawingBuffer：在同一个任务里 render() 后立刻 toDataURL，
+  // 绘制缓冲尚未被合成器清空，导出完整；比常开缓冲少一档性能开销。
+  captureFrame() {
+    this.render();
+    return this.renderer.domElement.toDataURL('image/png');
+  }
+
   _onResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();

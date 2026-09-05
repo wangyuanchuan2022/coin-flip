@@ -20,6 +20,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "jsqr": "^1.4.0"
   }
 }

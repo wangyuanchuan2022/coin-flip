@@ -112,5 +112,42 @@ console.log('— 场景 6：同一拍双击只收第一次 —');
   assert(first === ticks[COUNT_IN] && second === null, '第二次拍击被拒绝，不串到下一拍');
 }
 
+console.log('— 场景 7：高延迟 700ms ± 25ms（超过半周期，最近拍归属翻到下一拍） —');
+{
+  const rnd = mulberry32(30007);
+  const ticks = makeSession();
+  let aliased = 0;
+  for (let i = COUNT_IN; i < COUNT_IN + BEATS; i++) {
+    const tapSec = ticks[i].p + 0.700 + (rnd() * 2 - 1) * 0.025;
+    if (attributeTap(tapSec, ticks) !== ticks[i]) aliased++;
+  }
+  assert(aliased === BEATS, '归属确实翻到下一拍（原始偏移 ≈ −400ms）');
+  const r = evaluateSession(ticks);
+  assert(Math.abs(r.resultMs - 700) <= 20, `周期展开恢复真实延迟：${r.resultMs}ms ∈ 700±20，绝不为负`);
+  assert(r.reliable, `MAD ${r.madMs}ms 稳定，不误报`);
+}
+
+console.log('— 场景 8：小延迟 20ms ± 40ms（样本跨零边界） —');
+{
+  const rnd = mulberry32(30008);
+  const ticks = makeSession();
+  for (let i = COUNT_IN; i < COUNT_IN + BEATS; i++) {
+    attributeTap(ticks[i].p + 0.020 + (rnd() * 2 - 1) * 0.040, ticks);
+  }
+  const r = evaluateSession(ticks);
+  assert(r.resultMs >= 0 && r.resultMs <= 100, `小延迟不爆表：${r.resultMs}ms ∈ [0,100]`);
+}
+
+console.log('— 场景 9：贴近周期上界 1000ms（跨零修正钳到 0） —');
+{
+  const rnd = mulberry32(30009);
+  const ticks = makeSession();
+  for (let i = COUNT_IN; i < COUNT_IN + BEATS; i++) {
+    attributeTap(ticks[i].p + 1.000 + (rnd() * 2 - 1) * 0.020, ticks);
+  }
+  const r = evaluateSession(ticks);
+  assert(r.resultMs === 0, `跨零修正：${r.resultMs}ms（≥1050ms 不可用延迟按 0 报告，绝不输出负数）`);
+}
+
 console.log(`\n结果：${pass} 通过，${fail} 失败`);
 process.exit(fail ? 1 : 0);

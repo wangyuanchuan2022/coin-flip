@@ -11,9 +11,9 @@
 // 两者同为 1s/s 恒速时钟，常数差使「调度节拍的墙钟时刻」可精确换算；
 // ctx.currentTime 的读取量化误差为常数偏置，在差值中互相抵消。
 
-// 节拍周期（秒，约 55 BPM）：必须大于预期最大延迟的 2 倍——否则「延迟 L 的
-// 拍击」在时间轴上会离「下一拍」更近（L > 周期/2 时），被错误归属到下一拍，
-// 有效拍击永远不足（实测 300ms 延迟 + 550ms 周期必现）。
+// 节拍周期（秒，约 55 BPM）：即本向导可测延迟的上限。配合 evaluateSession 的
+// 周期展开，任意延迟 L ∈ [0, PERIOD) 都能正确恢复——高延迟（> 半周期）的拍击
+// 虽然会被「最近拍」归属翻到下一拍得到大负数，展开后即还原。
 export const PERIOD = 1.1;
 export const COUNT_IN = 3;    // 预备拍数（低音，不计入统计）
 export const BEATS = 12;      // 计入统计的拍数
@@ -39,23 +39,36 @@ export function attributeTap(tapSec, ticks) {
   return best;
 }
 
-// 会话结算：有效拍数、原始偏移中位数（孤立走神拍天然不影响中位数，
-// 无需再做剔除——剔除反而会让离散度失真并带偏中位数）、MAD、可靠性。
+// 会话结算：有效拍数、周期展开后的中位数、MAD 离散度、可靠性。
+// 周期展开：输出延迟物理上非负，把每拍偏移 ((d mod P) + P) mod P 折进 [0, P)——
+// 高延迟（L > P/2）被「最近拍」归属成的大负数（L − P）即还原为 L。
+// 唯一例外是贴近周期上界（med > P − 150ms）的样本簇：那其实是「延迟 ≈ 0 +
+// 跟拍提前」跨过零边界的情形，按 med − P 修正并钳到 0（>1050ms 的延迟不可用）。
 // 不满足 MIN_TAPS 返回 { ok:false, validCount }。
 export function evaluateSession(ticks) {
   const vals = ticks
     .filter((k) => k.counted && k.tap !== undefined)
-    .map((k) => k.tap)
-    .sort((a, b) => a - b);
+    .map((k) => k.tap);
   if (vals.length < MIN_TAPS) return { ok: false, validCount: vals.length };
-  const result = vals[Math.floor(vals.length / 2)];
-  const devs = vals.map((v) => Math.abs(v - result)).sort((a, b) => a - b);
+  const P = PERIOD;
+  const us = vals
+    .map((v) => ((v % P) + P) % P)
+    .sort((a, b) => a - b);
+  const med = us[Math.floor(us.length / 2)];
+  let resultSec = med;
+  if (med > P - 0.15) resultSec = med - P; // 跨零边界：延迟≈0、样本被跟拍提前推过周期头
+  const devs = us
+    .map((v) => {
+      const d0 = Math.abs(v - med);
+      return Math.min(d0, P - d0); // 环绕距离：跨零边界的样本群也算聚合
+    })
+    .sort((a, b) => a - b);
   const mad = devs[Math.floor(devs.length / 2)];
   return {
     ok: true,
     validCount: vals.length,
     usedCount: vals.length,
-    resultMs: Math.round(result * 1000),
+    resultMs: Math.max(0, Math.round(resultSec * 1000)),
     madMs: Math.round(mad * 1000),
     reliable: mad <= MAD_LIMIT,
   };

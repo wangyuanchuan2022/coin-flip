@@ -161,7 +161,7 @@ function boot() {
     });
   });
 
-  // 分享面板：屏幕二维码 + 结果/成就/统计卡片图
+  // 分享面板：屏幕二维码 + 结果/成就/统计卡片图（背景为真实渲染场景帧）
   const shareBtn = document.getElementById('share-btn');
   if (shareBtn) shareBtn.addEventListener('click', () => {
     openShare({
@@ -169,8 +169,14 @@ function boot() {
       face: lastFace,
       counters: achievements.counters,
       unlocked: achievements.state.unlocked,
+      capture: () => scene.captureFrame(),
     });
   });
+
+  // 分享面板预览（?sharepreview，自动化视觉验收用）
+  if (new URLSearchParams(window.location.search).has('sharepreview')) {
+    setTimeout(() => shareBtn && shareBtn.click(), 3000);
+  }
 
   // 主循环：物理推进 → 记录变换样本 → 按「模拟时钟 − 渲染延迟」上屏 →
   // 相机跟随延迟后的位置 → 待播的结算/掉落反馈到点触发
