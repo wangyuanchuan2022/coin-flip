@@ -29,18 +29,18 @@ export class SoundKit {
     if (v && this.ctx) this.ctx.resume();
   }
 
-  // 金属碰撞「叮」合成兜底：两个非谐波泛音快速指数衰减，intensity 0~1 控制音量与亮度
+  // 金属撞木合成兜底：中低频「叩」声，短促钝感（高频泛音刺耳，已弃用）
   _metalPing(intensity = 0.5) {
     const ctx = this.ctx;
     const t0 = ctx.currentTime;
-    const vol = 0.04 + intensity * 0.22;
+    const vol = 0.05 + intensity * 0.18;
     const master = ctx.createGain();
     master.gain.value = vol;
     master.connect(ctx.destination);
 
     const partials = [
-      { f: 2350 + intensity * 500, g: 1.0, d: 0.09 },
-      { f: 6100 + intensity * 900, g: 0.4, d: 0.05 },
+      { f: 820 + intensity * 260, g: 1.0, d: 0.11 },
+      { f: 1750 + intensity * 350, g: 0.3, d: 0.06 },
     ];
     for (const p of partials) {
       const osc = ctx.createOscillator();
@@ -55,13 +55,10 @@ export class SoundKit {
     }
   }
 
-  // 碰撞声：木板采样（峰值归一化，音量随冲击、速率微随机）+ 金属叮叠加，保证碰撞反馈始终可听
+  // 碰撞声：木板采样为主（音量随冲击、速率微随机），不叠合成音——保持金属撞木的钝感
   clink(intensity = 0.5) {
     const ctx = this.ensure();
     if (!ctx) return;
-
-    // 金属叮始终叠加：合成音量稳定，是碰撞反馈的可听下限（采样电平异常时也不至于无声）
-    this._metalPing(intensity);
 
     if (this.hitBuffer) {
       try {
@@ -72,10 +69,12 @@ export class SoundKit {
         g.gain.value = 0.2 + intensity * 0.55;
         src.connect(g).connect(ctx.destination);
         src.start();
+        return;
       } catch {
-        /* 播放异常时合成叮已保证反馈 */
+        /* 播放异常时回退合成音 */
       }
     }
+    this._metalPing(intensity); // 采样尚未解码完成或播放异常时的兜底
   }
 
   // 预解码碰撞采样（幂等；解码在用户手势后的 AudioContext 上进行）
