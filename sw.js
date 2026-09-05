@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v5'; // v5: 音画延迟自动校准向导（节拍器+空格拍点，结果持久化）
+const CACHE = 'coin-flip-v6'; // v6: 校准向导节拍 550ms→1.1s 修复高延迟下拍击归属翻转/容差全拒
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {

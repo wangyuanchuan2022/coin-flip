@@ -9,11 +9,12 @@
 // 两者同为 1s/s 恒速时钟，常数差使「调度节拍的墙钟时刻」可精确换算；
 // ctx.currentTime 的读取量化误差为常数偏置，在差值中互相抵消。
 
-const PERIOD = 0.55;   // 节拍周期（秒，约 109 BPM）
-const COUNT_IN = 4;    // 预备拍数（低音，不计入统计）
-const BEATS = 14;      // 计入统计的拍数
+const PERIOD = 1.1;    // 节拍周期（秒，约 55 BPM）：必须大于预期最大延迟的 2 倍——
+                       // 否则「延迟 L 的拍击」在时间轴上会离「下一拍」更近（L>周期/2 时），
+                       // 被错误归属到下一拍再被容差拒绝，有效拍击永远不足（实测 300ms 延迟必现）
+const COUNT_IN = 3;    // 预备拍数（低音，不计入统计）
+const BEATS = 12;      // 计入统计的拍数
 const MIN_TAPS = 6;    // 有效拍击下限
-const WINDOW = 0.18;   // 拍击归属最近节拍的容差（秒）
 const OUTLIER = 0.08;  // 距中位数超过此值视为走神拍（秒）
 
 export function openCalibration({ sound, onApply }) {
@@ -50,7 +51,7 @@ export function openCalibration({ sound, onApply }) {
     phase = 'intro';
     render(
       title('音 画 延 迟 校 准') +
-      '<div style="font-size:13.5px;line-height:1.9;opacity:.85;">请佩戴你<b>平时使用</b>的耳机/音箱。<br>节拍器响起后，跟着你<b>听到的「嗒」声</b>按 <b>空格</b>（或点按钮），<br>共 ' + BEATS + ' 拍。<b>不要看圆点</b>，圆点只是装饰。</div>' +
+      '<div style="font-size:13.5px;line-height:1.9;opacity:.85;">请佩戴你<b>平时使用</b>的耳机/音箱。<br>节拍较慢（约每秒 1 拍），节拍器响起后，跟着你<b>听到的「嗒」声</b><br>按 <b>空格</b>（或点按钮），共 ' + BEATS + ' 拍。<b>不要看圆点</b>，圆点只是装饰。</div>' +
       btn('开 始', true) +
       btn('取消') +
       note('原理：拍击时刻与调度时刻之差的稳健中位数 = 本机音频输出延迟。')
@@ -129,7 +130,9 @@ export function openCalibration({ sound, onApply }) {
       const d = t - k.p;
       if (Math.abs(d) < Math.abs(bestD)) { best = k; bestD = d; }
     }
-    if (!best || !best.counted || best.tap !== undefined || Math.abs(bestD) > WINDOW) return;
+    // 只按「最近拍」归属：延迟本身就是待测量，不能设小容差硬拒；
+    // 防走神/双击交给「每拍只收一次 + 中位数离群剔除」
+    if (!best || !best.counted || best.tap !== undefined) return;
     best.tap = bestD;
     const done = ticks.filter((k) => k.counted && k.tap !== undefined).length;
     const cnt = card.querySelector('#cal-count');
