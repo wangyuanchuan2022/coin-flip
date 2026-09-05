@@ -131,7 +131,7 @@ function boot() {
     scene.showRingAt(pos);
     if (!prefersReducedMotion) scene.burst(pos, standing); // 立住时切换为冲天金柱特效
     sound.reveal(face);
-    ui.record(face);
+    ui.record(face, standing); // standing 必须传入：立住是第三种结果，单独计数（此前漏传导致立住被计入正/反面）
     ui.showResult(face, standing);
     ui.enterIdle();
   }

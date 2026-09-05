@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v13'; // v13: 站立单独统计（第三结果：统计卡五格/正面率只算正反/卡片文案自适应缩字）
+const CACHE = 'coin-flip-v14'; // v14: 修复立住统计漏记（fireSettle→ui.record 补传 standing，立住不再误入正/反面桶）
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {
