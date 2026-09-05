@@ -118,6 +118,7 @@ export class CoinPhysics {
     this.state = 'flying';
     this.stillTimer = 0;
     this.airTime = 0;
+    this._lastImpactAt = -1; // 重置节流基准：保证每次抛掷的第一声落地碰撞必响
   }
 
   _handleCollide(e) {
