@@ -68,7 +68,7 @@ export class SoundKit {
         const g = ctx.createGain();
         g.gain.value = 0.2 + intensity * 0.55;
         src.connect(g).connect(ctx.destination);
-        src.start();
+        src.start(0, this.hitStartOffset || 0); // 跳过静音头，即响
         return;
       } catch {
         /* 播放异常时回退合成音 */
@@ -112,6 +112,19 @@ export class SoundKit {
             }
           }
         }
+        // 扫描首个有效样本（|v|>0.02）：跳过采样开头的静音段，消除播放迟滞感
+        let startIdx = 0;
+        const threshold = 0.02;
+        for (let ch = 0; ch < buf.numberOfChannels && startIdx === 0; ch++) {
+          const d = buf.getChannelData(ch);
+          for (let i = 0; i < d.length; i++) {
+            if (Math.abs(d[i]) > threshold) {
+              startIdx = Math.max(0, i - 64); // 保留约 1.3ms 的自然起振
+              break;
+            }
+          }
+        }
+        this.hitStartOffset = startIdx / buf.sampleRate;
         this.hitBuffer = buf;
         return buf;
       })

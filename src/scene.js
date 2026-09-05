@@ -12,7 +12,7 @@ export class CoinScene {
 
     // 渲染器
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 移动端降载：像素比上限 1.5
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.VSMShadowMap; // 方差阴影：大半径柔边（PCFSoft 无法模糊）
@@ -58,7 +58,7 @@ export class CoinScene {
     spot.position.set(0, 12.5, 2.6);
     spot.target.position.set(0, 0, 0);
     spot.castShadow = true;
-    spot.shadow.mapSize.set(1024, 1024);
+    spot.shadow.mapSize.set(512, 512); // VSM 大模糊半径下 512 足够，减半阴影渲染负载
     spot.shadow.radius = 7; // VSM 柔化半径
     spot.shadow.blurSamples = 12;
     spot.shadow.bias = -0.0004;
@@ -82,7 +82,7 @@ export class CoinScene {
     rake.position.set(-17, 4.5, 7.5);
     rake.target.position.set(0, 0.5, 0);
     rake.castShadow = true;
-    rake.shadow.mapSize.set(1024, 1024);
+    rake.shadow.mapSize.set(512, 512);
     rake.shadow.radius = 12;
     rake.shadow.blurSamples = 14;
     rake.shadow.bias = -0.0006;

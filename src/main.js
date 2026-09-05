@@ -15,6 +15,7 @@ function boot() {
   const scene = new CoinScene(container);
   const sound = new SoundKit();
   const achievements = new AchievementManager();
+  sound.preloadHit(); // 页面加载即预解码碰撞采样（不必等第一次碰撞）
 
   function doThrow(power, viaDesk) {
     if (physics.state === 'flying') return; // 飞行中不可重复抛
