@@ -38,6 +38,7 @@ export class CoinPhysics {
     this.onImpact = null;  // (intensity: 0~1) => void
     this.onDrop = null;    // () => void：硬币滚出台面边缘
     this._lastImpactAt = 0;
+    this._lastImpactV = Infinity; // 窗口内最近一次发声的冲击速度（Infinity 保证首声必响）
     this.coinBody.addEventListener('collide', (e) => this._handleCollide(e));
   }
 
@@ -119,15 +120,20 @@ export class CoinPhysics {
     this.stillTimer = 0;
     this.airTime = 0;
     this._lastImpactAt = -1; // 重置节流基准：保证每次抛掷的第一声落地碰撞必响
+    this._lastImpactV = Infinity;
   }
 
   _handleCollide(e) {
     if (this.state !== 'flying') return;
     const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
     if (v < 1.0) return;
-    // 声音节流基于物理模拟时间（墙钟在无头/后台标签下不可靠）
-    if (this.airTime - this._lastImpactAt < 0.08) return;
+    // 声音节流基于物理模拟时间（墙钟在无头/后台标签下不可靠）：
+    // 80ms 窗口内的更弱接触不重复发声；但明显更重的撞击穿透窗口——
+    // 否则擦碰后紧跟的正面重砸会被吞掉，用户「看到大弹跳却没声音」，
+    // 听到的却是下一次更轻的弹跳（读作音画不同步）。
+    if (this.airTime - this._lastImpactAt < 0.08 && v <= this._lastImpactV) return;
     this._lastImpactAt = this.airTime;
+    this._lastImpactV = v;
     if (this.onImpact) this.onImpact(Math.min(1, v / 9));
   }
 

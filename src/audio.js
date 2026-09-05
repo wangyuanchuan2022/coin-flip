@@ -16,11 +16,24 @@ export class SoundKit {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
-      this.ctx = new AC();
+      // latencyHint: 'interactive' —— 最小化输出缓冲，压缩「调度 → 扬声器出声」的固有延迟
+      try {
+        this.ctx = new AC({ latencyHint: 'interactive' });
+      } catch {
+        this.ctx = new AC();
+      }
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     this._prepareHitBuffer();
     return this.ctx;
+  }
+
+  // 音频输出延迟（秒）：调度时刻 → 声音真正到达扬声器的时间差。
+  // 音画同步补偿的核心依据（Chrome/Edge 提供 outputLatency，Firefox 退回 baseLatency）。
+  get audioLatency() {
+    if (!this.ctx) return 0;
+    const l = this.ctx.outputLatency ?? this.ctx.baseLatency;
+    return typeof l === 'number' && isFinite(l) && l > 0 ? l : 0;
   }
 
   setEnabled(v) {
@@ -144,11 +157,11 @@ export class SoundKit {
     return this._prepareHitBuffer();
   }
 
-  // 抛起轻响：短促上扫频
-  toss() {
+  // 抛起轻响：短促上扫频（delaySec 用于音画同步补偿：与延迟渲染的画面同步响起）
+  toss(delaySec = 0) {
     const ctx = this.ensure();
     if (!ctx) return;
-    const t0 = ctx.currentTime;
+    const t0 = ctx.currentTime + Math.max(0, delaySec || 0);
     const osc = ctx.createOscillator();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(420, t0);

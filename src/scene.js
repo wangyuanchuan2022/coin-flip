@@ -49,6 +49,17 @@ export class CoinScene {
     this.camCur = this.camBase.clone();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    // —— 音画同步：渲染延迟补偿 ——
+    // 声音按「现在」调度，最早也要 ctx.outputLatency 后才到达扬声器；把画面渲染
+    // 「过去 renderDelay 秒」的状态，碰撞的声与画即落在同一时刻。
+    this.simClock = 0;      // 与物理同步推进的模拟时钟（秒），main 每帧累加 dt
+    this.renderDelay = 0;   // 当前渲染延迟（秒），main 按音频延迟动态计算
+    this.coinHistory = [];  // 硬币变换样本环形历史 {t, p:Vector3, q:Quaternion}
+    this.delayedPos = new THREE.Vector3(0, 0.06, 0);   // 延迟后的硬币位置（相机跟随用）
+    this.delayedQuat = new THREE.Quaternion();
+    this._tmpP = new THREE.Vector3();
+    this._tmpQ = new THREE.Quaternion();
+
     window.addEventListener('resize', () => this._onResize());
   }
 
@@ -175,11 +186,59 @@ export class CoinScene {
     this.scene.add(this.particles);
   }
 
-  // 物理同步（GLB 视觉模型未挂载前跳过）
-  syncCoin(body) {
-    if (!this.coinVisual) return;
-    this.coinVisual.position.copy(body.position);
-    this.coinVisual.quaternion.copy(body.quaternion);
+  // 每帧在 physics.update 之后调用：记录硬币的插值变换样本。
+  // 用 cannon 的 interpolatedPosition/Quaternion（step 已按剩余时间插值），
+  // 消除「整子步量化」——接触帧与碰撞事件帧严格对应，也是 120Hz+ 屏幕平滑的前提。
+  pushCoinSample(body) {
+    const ip = body.interpolatedPosition;
+    const iq = body.interpolatedQuaternion;
+    this.coinHistory.push({
+      t: this.simClock,
+      p: new THREE.Vector3(ip.x, ip.y, ip.z),
+      q: new THREE.Quaternion(iq.x, iq.y, iq.z, iq.w),
+    });
+    // 只留 0.5s：足够覆盖最大补偿延迟（0.15s）加抖动余量
+    const cutoff = this.simClock - 0.5;
+    const h = this.coinHistory;
+    while (h.length > 2 && h[0].t < cutoff) h.shift();
+  }
+
+  // 把视觉硬币设为 renderTime（= simClock - renderDelay）时刻的状态，
+  // 并把该位置写入 delayedPos/delayedQuat 供相机跟随（GLB 未挂载时只更新跟随位置）。
+  applyCoinAt(renderTime) {
+    const h = this.coinHistory;
+    if (h.length === 0) return;
+    let a;
+    let b;
+    if (renderTime <= h[0].t) {
+      a = h[0];
+      b = null;
+    } else if (renderTime >= h[h.length - 1].t) {
+      a = h[h.length - 1];
+      b = null;
+    } else {
+      for (let i = h.length - 2; i >= 0; i--) {
+        if (h[i].t <= renderTime) {
+          a = h[i];
+          b = h[i + 1];
+          break;
+        }
+      }
+    }
+    if (b) {
+      const k = (renderTime - a.t) / Math.max(1e-6, b.t - a.t);
+      this._tmpP.lerpVectors(a.p, b.p, k);
+      this._tmpQ.slerpQuaternions(a.q, b.q, k);
+    } else {
+      this._tmpP.copy(a.p);
+      this._tmpQ.copy(a.q);
+    }
+    this.delayedPos.copy(this._tmpP);
+    this.delayedQuat.copy(this._tmpQ);
+    if (this.coinVisual) {
+      this.coinVisual.position.copy(this._tmpP);
+      this.coinVisual.quaternion.copy(this._tmpQ);
+    }
   }
 
   showRingAt(pos) {
@@ -213,12 +272,13 @@ export class CoinScene {
     this.restLook.set(pos.x * 0.6, 0.9, pos.z * 0.6);
   }
 
-  // 相机跟随：飞行时平滑追踪（看向点全跟随 + 机位小比例限幅跟随），静止后缓慢回位
-  followCoin(body, state, dt) {
+  // 相机跟随：飞行时平滑追踪「延迟渲染后的硬币」（与用户所见的声画位置一致），
+  // 静止后缓慢回位
+  followCoin(state, dt) {
     const tracking = state === 'flying';
     const blend = 1 - Math.exp(-(tracking ? 5 : 2.2) * dt);
     if (tracking) {
-      const p = body.position;
+      const p = this.delayedPos;
       this.lookCur.lerp(new THREE.Vector3(p.x * 0.9, Math.max(0.4, p.y), p.z * 0.9), blend);
       if (!this.reducedMotion) {
         this.camCur.lerp(
