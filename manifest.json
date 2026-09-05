@@ -1,0 +1,18 @@
+{
+  "name": "抛硬币模拟器",
+  "short_name": "抛硬币",
+  "description": "基于真实刚体物理的网页版抛硬币模拟器",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0f0f23",
+  "theme_color": "#0f0f23",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

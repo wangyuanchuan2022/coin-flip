@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>抛硬币模拟器 · Coin Flip Simulator</title>
 <meta name="description" content="基于 three.js 与 cannon-es 物理引擎的网页版抛硬币模拟器">
+<meta name="theme-color" content="#0f0f23">
+<link rel="manifest" href="./manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap">
@@ -453,5 +455,14 @@
   </div>
 
   <script src="./dist/bundle.js"></script>
+  <script>
+    // Service Worker 预缓存：首次在线访问后资源持久缓存，离线/二次访问零下载
+    // （file:// 本地打开不注册也无需注册——资源已内联）
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

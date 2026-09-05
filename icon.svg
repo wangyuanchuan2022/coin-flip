@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <circle cx="256" cy="256" r="248" fill="#0f0f23"/>
+  <circle cx="256" cy="256" r="196" fill="#e8b54a"/>
+  <circle cx="256" cy="256" r="164" fill="none" stroke="#6b470c" stroke-width="10"/>
+  <text x="256" y="338" font-size="235" font-family="Georgia, serif" font-weight="700" text-anchor="middle" fill="#6b470c">正</text>
+</svg>
