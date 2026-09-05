@@ -96,6 +96,20 @@
   }
   #cal-btn:hover { transform: scale(1.08); border-color: var(--gold); color: var(--gold); }
   #cal-btn:active { transform: scale(0.94); }
+  #share-btn {
+    pointer-events: auto;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    backdrop-filter: blur(10px);
+    color: var(--fg);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 0.15s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  #share-btn:hover { transform: scale(1.08); border-color: var(--gold); color: var(--gold); }
+  #share-btn:active { transform: scale(0.94); }
   #sound-btn {
     pointer-events: auto;
     width: 42px; height: 42px;
@@ -221,7 +235,7 @@
     filter: saturate(0.45) brightness(0.72);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
   }
-  #throw-btn:focus-visible, .power-btn:focus-visible, #sound-btn:focus-visible, #cal-btn:focus-visible {
+  #throw-btn:focus-visible, .power-btn:focus-visible, #sound-btn:focus-visible, #cal-btn:focus-visible, #share-btn:focus-visible {
     outline: 2px solid var(--gold);
     outline-offset: 3px;
   }
@@ -380,7 +394,7 @@
   @media (prefers-reduced-motion: reduce) {
     #result-panel.show { animation: none; opacity: 1; }
     #ratio-heads { transition: none; }
-    #throw-btn, #sound-btn, #cal-btn, .power-btn { transition: none; }
+    #throw-btn, #sound-btn, #cal-btn, #share-btn, .power-btn { transition: none; }
   }
 </style>
 </head>
@@ -416,6 +430,14 @@
           <circle cx="12" cy="12" r="8"/>
           <circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/>
           <path d="M12 2v2.6M12 19.4V22M2 12h2.6M19.4 12H22"/>
+        </svg>
+      </button>
+      <button id="share-btn" type="button" aria-label="分享" title="分享 · 二维码 / 结果卡片（含成就与统计）">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="3"/>
+          <circle cx="6" cy="12" r="3"/>
+          <circle cx="18" cy="19" r="3"/>
+          <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>
         </svg>
       </button>
     </div>

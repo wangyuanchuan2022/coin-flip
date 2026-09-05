@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v7'; // v7: 校准结算改原始中位数+MAD 稳定性警告（node 自证 tests/calibrate.mjs 15/15）
+const CACHE = 'coin-flip-v8'; // v8: 分享面板（屏幕二维码 + 含成就/统计的分享卡片图，vendor qrcode.cjs）
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {

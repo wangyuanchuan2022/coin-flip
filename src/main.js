@@ -7,6 +7,7 @@ import { SoundKit } from './audio.js';
 import { createCoinVisual } from './coin-model.js';
 import { AchievementManager } from './achievements.js';
 import { openCalibration } from './calibrate.js';
+import { openShare, resolveGameUrl } from './share.js';
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -32,6 +33,7 @@ function boot() {
   let lastFrameAt = performance.now();
   let pendingSettle = null;      // { face, pos, at } —— 等画面「演到」结算时刻再触发可见/可听反馈
   let pendingDrop = null;
+  let lastFace = null;           // 最近一次结果（分享卡片展示用）
 
   // 音画诊断 HUD（?avdebug=1）：实时暴露音画链路数字。
   // 红框闪烁 = 碰撞声「此刻」被调度的墙钟时刻，用于与可见弹跳/可听咚声三方比对：
@@ -123,6 +125,7 @@ function boot() {
   function fireSettle() {
     const { face, pos } = pendingSettle;
     pendingSettle = null;
+    lastFace = face;
     achievements.onSettle(face);
     scene.setRestLook(pos);
     scene.showRingAt(pos);
@@ -155,6 +158,17 @@ function boot() {
         manualDelayMs = ms;
         localStorage.setItem('coin-flip-avdelay-ms', String(ms));
       },
+    });
+  });
+
+  // 分享面板：屏幕二维码 + 结果/成就/统计卡片图
+  const shareBtn = document.getElementById('share-btn');
+  if (shareBtn) shareBtn.addEventListener('click', () => {
+    openShare({
+      url: resolveGameUrl(window.location),
+      face: lastFace,
+      counters: achievements.counters,
+      unlocked: achievements.state.unlocked,
     });
   });
 
