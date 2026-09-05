@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v9'; // v9: 负延迟修复（周期展开）+ 分享卡片真实场景背景（captureFrame）
+const CACHE = 'coin-flip-v10'; // v10: 分享卡片去圆圈/问号，渲染场景为上半区主视觉
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {

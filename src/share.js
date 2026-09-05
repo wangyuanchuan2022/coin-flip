@@ -88,7 +88,8 @@ export function buildShareCard({ face, counters, url, unlocked, sceneImg }) {
   const ctx = canvas.getContext('2d');
 
   if (sceneImg && (sceneImg.naturalWidth || sceneImg.width)) {
-    // 真实渲染场景 cover-裁切铺满，再压一层上浅下深的可读性遮罩
+    // 真实渲染场景 cover-裁切铺满。遮罩上浅下深：中上部把场景亮出来当主视觉，
+    // 下半区渐深保证文字与二维码可读
     const iw = sceneImg.naturalWidth || sceneImg.width;
     const ih = sceneImg.naturalHeight || sceneImg.height;
     const k = Math.max(W / iw, H / ih);
@@ -96,9 +97,11 @@ export function buildShareCard({ face, counters, url, unlocked, sceneImg }) {
     const dh = ih * k;
     ctx.drawImage(sceneImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
     const scrim = ctx.createLinearGradient(0, 0, 0, H);
-    scrim.addColorStop(0, 'rgba(23,18,31,.66)');
-    scrim.addColorStop(0.5, 'rgba(23,18,31,.42)');
-    scrim.addColorStop(1, 'rgba(23,18,31,.8)');
+    scrim.addColorStop(0, 'rgba(23,18,31,.58)');
+    scrim.addColorStop(0.32, 'rgba(23,18,31,.16)');
+    scrim.addColorStop(0.62, 'rgba(23,18,31,.38)');
+    scrim.addColorStop(0.78, 'rgba(23,18,31,.6)');
+    scrim.addColorStop(1, 'rgba(23,18,31,.84)');
     ctx.fillStyle = scrim;
     ctx.fillRect(0, 0, W, H);
   } else {
@@ -120,40 +123,23 @@ export function buildShareCard({ face, counters, url, unlocked, sceneImg }) {
   ctx.font = `400 24px ${FONT}`;
   ctx.fillText('C O I N   F L I P  ·  R I G I D   B O D Y   P H Y S I C S', W / 2, 198);
 
-  const cy = 480;
-  const R = 208;
-  ctx.beginPath();
-  ctx.arc(W / 2, cy, R, 0, Math.PI * 2);
-  ctx.strokeStyle = '#e8c86a';
-  ctx.lineWidth = 6;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(W / 2, cy, R - 16, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(232,200,106,.25)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  const glyph = face === 'heads' ? '正' : face === 'tails' ? '反' : '？';
+  // 中上部不再叠加圆圈/结果字形——留白交给真实渲染场景当主视觉，
+  // 结果/统计/成就文字块整体下移到渐深的下半区
+  const faceText = face === 'heads' ? '正面' : face === 'tails' ? '反面' : '';
   ctx.fillStyle = '#f2ecf8';
-  ctx.font = `700 168px ${FONT}`;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(glyph, W / 2, cy + 10);
-  ctx.textBaseline = 'alphabetic';
-
-  ctx.fillStyle = '#cfc6dd';
-  ctx.font = `400 40px ${FONT}`;
+  ctx.font = `400 42px ${FONT}`;
   const resultText = counters.total
-    ? `第 ${counters.total} 抛 · ${glyph === '正' ? '正面' : glyph === '反' ? '反面' : '待揭晓'}`
+    ? `第 ${counters.total} 抛${faceText ? ` · ${faceText}` : ''}`
     : '虚位以待 · 快来抛出第一枚';
-  ctx.fillText(resultText, W / 2, cy + R + 92);
+  ctx.fillText(resultText, W / 2, 806);
 
   ctx.fillStyle = '#e8c86a';
-  ctx.font = `500 44px ${FONT}`;
-  ctx.fillText(statsLine(counters), W / 2, cy + R + 178);
+  ctx.font = `500 46px ${FONT}`;
+  ctx.fillText(statsLine(counters), W / 2, 876);
 
   ctx.fillStyle = 'rgba(207,198,221,.95)';
   ctx.font = `400 31px ${FONT}`;
-  ctx.fillText(achievementsLine(unlocked), W / 2, cy + R + 248);
+  ctx.fillText(achievementsLine(unlocked), W / 2, 944);
 
   // 底部白卡：二维码 + 扫码文案
   const qw = 820;
