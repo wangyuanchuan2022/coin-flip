@@ -28,6 +28,19 @@ function boot() {
   let pendingSettle = null;      // { face, pos, at } —— 等画面「演到」结算时刻再触发可见/可听反馈
   let pendingDrop = null;
 
+  // 音画诊断 HUD（?avdebug=1）：实时暴露音画链路数字。
+  // 红框闪烁 = 碰撞声「此刻」被调度的墙钟时刻，用于与可见弹跳/可听咚声三方比对：
+  // 闪烁与弹跳同时但咚声晚 → 音频输出链路（设备/驱动/蓝牙/增强）延迟；
+  // 咚声与闪烁同时但画面晚 → 补偿过度（outputLatency 报告值高估）；
+  // 闪烁比弹跳晚 → 代码事件侧问题（结构上不应出现）。
+  const avDebug = new URLSearchParams(window.location.search).get('avdebug') === '1';
+  const hud = avDebug ? document.createElement('div') : null;
+  if (hud) {
+    hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:9999;background:rgba(0,0,0,.72);color:#7dff9b;font:12px/1.5 Consolas,monospace;padding:8px 10px;border-radius:8px;pointer-events:none;white-space:pre;transition:box-shadow .12s;';
+    document.body.appendChild(hud);
+  }
+  let fpsEst = 60;
+
   function computeRenderDelay() {
     if (avDelayOverride !== null) {
       scene.renderDelay = avDelayOverride;
@@ -72,7 +85,13 @@ function boot() {
     ui.updateAchvEntry();
   };
 
-  physics.onImpact = (intensity) => sound.clink(intensity);
+  physics.onImpact = (intensity) => {
+    if (hud) { // 红框闪烁标记「此刻调度了碰撞声」（见上方 HUD 三方比对说明）
+      hud.style.boxShadow = '0 0 0 3px #ff4d4d';
+      setTimeout(() => { hud.style.boxShadow = 'none'; }, 90);
+    }
+    sound.clink(intensity);
+  };
 
   // 结算/掉落只推进状态并记账，可见与可听的反馈统一延迟到「画面演到该时刻」再触发
   // （碰撞声已由渲染延迟对齐，结算光环/揭晓音/结果面板若立即触发会提前于画面）
@@ -123,6 +142,19 @@ function boot() {
     scene.followCoin(physics.state, dt);
     scene.update(dt);
     scene.render();
+
+    if (hud) {
+      fpsEst += (1 / Math.max(1e-3, dt) - fpsEst) * 0.05;
+      const lat = sound.ctx ? sound.ctx.outputLatency : null;
+      const base = sound.ctx ? sound.ctx.baseLatency : null;
+      hud.textContent =
+        'ctx: ' + (sound.ctx ? sound.ctx.state : '-') + '\n' +
+        'outputLatency: ' + (lat == null ? 'n/a' : (lat * 1000).toFixed(1) + 'ms') + '\n' +
+        'baseLatency: ' + (base == null ? 'n/a' : (base * 1000).toFixed(1) + 'ms') + '\n' +
+        'renderDelay: ' + (scene.renderDelay * 1000).toFixed(1) + 'ms' + (scene.renderDelay >= 0.149 ? '（已达上限）' : '') + '\n' +
+        'fps: ' + fpsEst.toFixed(0) + '\n' +
+        '红框闪烁 = 碰撞声此刻被调度';
+    }
 
     if (pendingSettle && scene.simClock - pendingSettle.at >= scene.renderDelay) fireSettle();
     if (pendingDrop && scene.simClock - pendingDrop.at >= scene.renderDelay) fireDrop();
