@@ -281,10 +281,12 @@ export class CoinScene {
       const p = this.delayedPos;
       this.lookCur.lerp(new THREE.Vector3(p.x * 0.9, Math.max(0.4, p.y), p.z * 0.9), blend);
       if (!this.reducedMotion) {
+        // 机位跟随硬币移动：水平跟走约一半行程（视差足够又不晕）、垂直随高度抬升，
+        // 纵深保持默认距离（只平移不推拉）；硬币坠落时 clamp 保底不跟到桌面以下
         this.camCur.lerp(
           new THREE.Vector3(
-            THREE.MathUtils.clamp(p.x * 0.18, -1.6, 1.6),
-            this.camBase.y + THREE.MathUtils.clamp(p.y * 0.22, 0, 2.2),
+            THREE.MathUtils.clamp(p.x * 0.55, -5, 5),
+            this.camBase.y + THREE.MathUtils.clamp(p.y * 0.3, 0, 2.4),
             this.camBase.z
           ),
           blend
