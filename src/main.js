@@ -6,6 +6,7 @@ import { CoinUI } from './ui.js';
 import { SoundKit } from './audio.js';
 import { createCoinVisual } from './coin-model.js';
 import { AchievementManager } from './achievements.js';
+import { openCalibration } from './calibrate.js';
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -141,6 +142,20 @@ function boot() {
   // 直接点击台面也可抛掷（overlay 为 pointer-events: none，不遮挡）
   container.addEventListener('click', (e) => {
     if (e.target === scene.renderer.domElement) doThrow(ui.power, true);
+  });
+
+  // 音画延迟校准向导：自动测出本机音频输出链路的真实延迟并持久化
+  // （浏览器 outputLatency 报告值可能远小于真实值，蓝牙/系统音频增强下可达 200-400ms）
+  const calBtn = document.getElementById('cal-btn');
+  if (calBtn) calBtn.addEventListener('click', () => {
+    sound.ensure();
+    openCalibration({
+      sound,
+      onApply: (ms) => {
+        manualDelayMs = ms;
+        localStorage.setItem('coin-flip-avdelay-ms', String(ms));
+      },
+    });
   });
 
   // 主循环：物理推进 → 记录变换样本 → 按「模拟时钟 − 渲染延迟」上屏 →
