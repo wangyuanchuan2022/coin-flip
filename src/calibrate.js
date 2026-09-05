@@ -3,19 +3,65 @@
 // 原理：节拍器以固定周期调度「嗒」声（WebAudio 采样级精确调度），用户跟着
 // 「听到的」节拍拍击。拍击时刻与该拍调度时刻之差 = 音频输出链路真实延迟
 // （人类跟拍存在约 -10~-40ms 的整体预判偏置，结果偏小时在游戏里按 ] 加一档微调）。
-// 取中位数并做离群剔除，免疫个别拍错/走神。
+//
+// 纯逻辑（归属 attributeTap / 结算 evaluateSession）导出供 tests/calibrate.mjs
+// 在 node 里直接验证——向导 UI 与测试跑同一份代码，改逻辑必先过测试。
 //
 // 时钟对齐：调度时采样 clockOffset = performance.now()/1000 − ctx.currentTime，
 // 两者同为 1s/s 恒速时钟，常数差使「调度节拍的墙钟时刻」可精确换算；
 // ctx.currentTime 的读取量化误差为常数偏置，在差值中互相抵消。
 
-const PERIOD = 1.1;    // 节拍周期（秒，约 55 BPM）：必须大于预期最大延迟的 2 倍——
-                       // 否则「延迟 L 的拍击」在时间轴上会离「下一拍」更近（L>周期/2 时），
-                       // 被错误归属到下一拍再被容差拒绝，有效拍击永远不足（实测 300ms 延迟必现）
-const COUNT_IN = 3;    // 预备拍数（低音，不计入统计）
-const BEATS = 12;      // 计入统计的拍数
-const MIN_TAPS = 6;    // 有效拍击下限
-const OUTLIER = 0.08;  // 距中位数超过此值视为走神拍（秒）
+// 节拍周期（秒，约 55 BPM）：必须大于预期最大延迟的 2 倍——否则「延迟 L 的
+// 拍击」在时间轴上会离「下一拍」更近（L > 周期/2 时），被错误归属到下一拍，
+// 有效拍击永远不足（实测 300ms 延迟 + 550ms 周期必现）。
+export const PERIOD = 1.1;
+export const COUNT_IN = 3;    // 预备拍数（低音，不计入统计）
+export const BEATS = 12;      // 计入统计的拍数
+export const MIN_TAPS = 6;    // 有效拍击下限
+export const MAD_LIMIT = 0.045; // 原始偏移的中位绝对偏差上限：超过判定「拍击不稳定」并警告
+                               // （正常跟拍 MAD≈15-30ms；±120ms 级手忙脚乱 MAD≈60ms）
+                               // 注意必须在【原始】偏移上算——对剔除后集合算会被裁剪效应
+                               // 人为压小，手忙脚乱反而被判稳定（node 测试场景 4 抓到过）
+
+// 把一次拍击归属到时间轴上最近的「未占用且计入统计」的节拍。
+// 延迟本身就是待测量，不能设小容差硬拒；防走神/双击交给
+// 「每拍只收一次 + 中位数（对孤立走神天然免疫）+ MAD 稳定性警告」。
+// 返回被占用的节拍对象；无可归属节拍（全是预备拍/已占用）返回 null。
+export function attributeTap(tapSec, ticks) {
+  let best = null;
+  let bestD = Infinity;
+  for (const k of ticks) {
+    const d = tapSec - k.p;
+    if (Math.abs(d) < Math.abs(bestD)) { best = k; bestD = d; }
+  }
+  if (!best || !best.counted || best.tap !== undefined) return null;
+  best.tap = bestD;
+  return best;
+}
+
+// 会话结算：有效拍数、原始偏移中位数（孤立走神拍天然不影响中位数，
+// 无需再做剔除——剔除反而会让离散度失真并带偏中位数）、MAD、可靠性。
+// 不满足 MIN_TAPS 返回 { ok:false, validCount }。
+export function evaluateSession(ticks) {
+  const vals = ticks
+    .filter((k) => k.counted && k.tap !== undefined)
+    .map((k) => k.tap)
+    .sort((a, b) => a - b);
+  if (vals.length < MIN_TAPS) return { ok: false, validCount: vals.length };
+  const result = vals[Math.floor(vals.length / 2)];
+  const devs = vals.map((v) => Math.abs(v - result)).sort((a, b) => a - b);
+  const mad = devs[Math.floor(devs.length / 2)];
+  return {
+    ok: true,
+    validCount: vals.length,
+    usedCount: vals.length,
+    resultMs: Math.round(result * 1000),
+    madMs: Math.round(mad * 1000),
+    reliable: mad <= MAD_LIMIT,
+  };
+}
+
+// ———————— 以下为向导 UI（依赖 DOM 与 AudioContext） ————————
 
 export function openCalibration({ sound, onApply }) {
   const ctx = sound && sound.ctx;
@@ -41,7 +87,6 @@ export function openCalibration({ sound, onApply }) {
   let oscs = [];
   let pulseTimers = [];
   let finishTimer = null;
-  let taps = []; // 每拍归属的拍击偏移（秒），按 ticks 顺序
   let ticks = [];
 
   function render(html) { card.innerHTML = html; }
@@ -74,7 +119,6 @@ export function openCalibration({ sound, onApply }) {
       return;
     }
     phase = 'running';
-    taps = [];
     tickGain = ctx.createGain();
     tickGain.gain.value = 1;
     tickGain.connect(ctx.destination);
@@ -123,17 +167,8 @@ export function openCalibration({ sound, onApply }) {
 
   function recordTap() {
     if (phase !== 'running') return;
-    const t = performance.now() / 1000;
-    let best = null;
-    let bestD = Infinity;
-    for (const k of ticks) {
-      const d = t - k.p;
-      if (Math.abs(d) < Math.abs(bestD)) { best = k; bestD = d; }
-    }
-    // 只按「最近拍」归属：延迟本身就是待测量，不能设小容差硬拒；
-    // 防走神/双击交给「每拍只收一次 + 中位数离群剔除」
-    if (!best || !best.counted || best.tap !== undefined) return;
-    best.tap = bestD;
+    const hit = attributeTap(performance.now() / 1000, ticks);
+    if (!hit) return;
     const done = ticks.filter((k) => k.counted && k.tap !== undefined).length;
     const cnt = card.querySelector('#cal-count');
     if (cnt) cnt.textContent = `已完成 ${done} / ${BEATS}`;
@@ -152,38 +187,32 @@ export function openCalibration({ sound, onApply }) {
     if (phase !== 'running') return;
     phase = 'result';
     cleanupTimers();
-    const vals = ticks.filter((k) => k.counted && k.tap !== undefined).map((k) => k.tap).sort((a, b) => a - b);
-    if (vals.length < MIN_TAPS) {
+    const r = evaluateSession(ticks);
+    if (!r.ok) {
       render(
         title('有 效 拍 击 不 足') +
-        `<div style="font-size:13.5px;line-height:1.8;opacity:.85;">有效 ${vals.length} 次，至少需要 ${MIN_TAPS} 次。<br>跟着听到的「嗒」声拍即可，慢一点也没关系。</div>` +
+        `<div style="font-size:13.5px;line-height:1.8;opacity:.85;">有效 ${r.validCount} 次，至少需要 ${MIN_TAPS} 次。<br>跟着听到的「嗒」声拍即可，节奏慢，稳住就行。</div>` +
         btn('重新测', true) + btn('取消')
       );
     } else {
-      const med = vals[Math.floor(vals.length / 2)];
-      const kept = vals.filter((v) => Math.abs(v - med) <= OUTLIER);
-      const use = kept.length ? kept : vals;
-      const resultMs = Math.round(use[Math.floor(use.length / 2)] * 1000);
+      const warn = r.reliable
+        ? ''
+        : `<div style="font-size:13px;line-height:1.7;color:#ff9d9d;margin-top:10px;">⚠ 拍击不稳定（离散度 ±${r.madMs}ms），结果可能不可靠，建议重新测一次</div>`;
       render(
         title('校 准 完 成') +
-        `<div style="font-size:30px;font-weight:700;color:#e8c86a;letter-spacing:.04em;margin:6px 0;">≈ ${resultMs} ms</div>` +
-        '<div style="font-size:13px;line-height:1.8;opacity:.85;">这是你当前音频输出链路的真实延迟（有效拍击 ' + vals.length + ' 次）。<br>人类跟拍会整体略微提前，若游戏里仍觉得<br>碰撞声稍晚，进入游戏后按 <b>]</b> 加 25ms 微调即可。</div>' +
+        `<div style="font-size:30px;font-weight:700;color:#e8c86a;letter-spacing:.04em;margin:6px 0;">≈ ${r.resultMs} ms</div>` +
+        '<div style="font-size:13px;line-height:1.8;opacity:.85;">这是你当前音频输出链路的真实延迟（有效拍击 ' + r.validCount + ' 次）。<br>人类跟拍会整体略微提前，若游戏里仍觉得<br>碰撞声稍晚，进入游戏后按 <b>]</b> 加 25ms 微调即可。</div>' +
+        warn +
         btn('应用并保存', true) + btn('重新测') + btn('取消')
       );
-      card.querySelectorAll('button').forEach((b) => {
-        b.addEventListener('click', () => {
-          if (b.dataset.act.startsWith('应用')) {
-            if (onApply) onApply(resultMs);
-            close();
-          } else if (b.dataset.act.startsWith('重新')) begin();
-          else close();
-        });
-      });
-      return;
     }
     card.querySelectorAll('button').forEach((b) => {
       b.addEventListener('click', () => {
-        if (b.dataset.act.startsWith('重新')) begin();
+        if (b.dataset.act.startsWith('应用')) {
+          const rr = evaluateSession(ticks);
+          if (rr.ok && onApply) onApply(rr.resultMs);
+          close();
+        } else if (b.dataset.act.startsWith('重新')) begin();
         else close();
       });
     });

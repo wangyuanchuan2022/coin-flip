@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v6'; // v6: 校准向导节拍 550ms→1.1s 修复高延迟下拍击归属翻转/容差全拒
+const CACHE = 'coin-flip-v7'; // v7: 校准结算改原始中位数+MAD 稳定性警告（node 自证 tests/calibrate.mjs 15/15）
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {
