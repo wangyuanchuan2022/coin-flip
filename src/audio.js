@@ -87,23 +87,25 @@ export class SoundKit {
       .then((r) => r.arrayBuffer())
       .then((ab) => this.ctx.decodeAudioData(ab))
       .then((buf) => {
-        // 峰值归一化（无放大上限）：不管源文件电平多低，都拉到峰值 0.85 的可用响度；
-        // 样本级 clamp(-1,1) 兜底防削波；非有限样本直接置 0
-        let peak = 0;
+        // 1) 清理：非有限/越界坏点 → 置 0（源文件实测含 7.2e31 级越界样本，直接播放会爆音）
         for (let ch = 0; ch < buf.numberOfChannels; ch++) {
           const d = buf.getChannelData(ch);
           for (let i = 0; i < d.length; i++) {
             const v = d[i];
-            if (!isFinite(v)) {
-              d[i] = 0;
-              continue;
-            }
-            const a = Math.abs(v);
+            if (!isFinite(v) || Math.abs(v) > 4) d[i] = 0;
+          }
+        }
+        // 2) 清理后重算有效峰值，归一化到 0.85 的稳定响度（此后采样电平恒定可听）
+        let peak = 0;
+        for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+          const d = buf.getChannelData(ch);
+          for (let i = 0; i < d.length; i++) {
+            const a = Math.abs(d[i]);
             if (a > peak) peak = a;
           }
         }
         this.hitPeak = peak;
-        if (peak > 0 && peak < 1) {
+        if (peak > 0 && peak !== 0.85) {
           const norm = 0.85 / peak;
           for (let ch = 0; ch < buf.numberOfChannels; ch++) {
             const d = buf.getChannelData(ch);
@@ -112,7 +114,7 @@ export class SoundKit {
             }
           }
         }
-        // 扫描首个有效样本（|v|>0.02）：跳过采样开头的静音段，消除播放迟滞感
+        // 3) 扫描首个有效样本（|v|>0.02）：跳过采样开头的静音段，消除播放迟滞感
         let startIdx = 0;
         const threshold = 0.02;
         for (let ch = 0; ch < buf.numberOfChannels && startIdx === 0; ch++) {
