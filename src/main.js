@@ -22,7 +22,11 @@ function boot() {
   // 蓝牙 150ms+）；而碰撞画面只延迟约 1 个垂直同步就上屏。把画面渲染「过去 renderDelay 秒」
   // 的状态（scene.applyCoinAt），声音与画面即对齐。?avdelay=毫秒 可强制覆盖（0 = 关闭补偿）。
   const avDelayParam = new URLSearchParams(window.location.search).get('avdelay');
-  const avDelayOverride = avDelayParam === null ? null : Math.max(0, Number(avDelayParam) || 0) / 1000;
+  // 手动补偿量（毫秒）：URL ?avdelay= 优先，其次 localStorage 持久值（HUD 中 [ ] 调整、S 保存）
+  const storedDelayMs = Number(localStorage.getItem('coin-flip-avdelay-ms'));
+  let manualDelayMs = avDelayParam !== null
+    ? Math.max(0, Number(avDelayParam) || 0)
+    : (isFinite(storedDelayMs) && storedDelayMs >= 0 ? storedDelayMs : null);
   let vsyncEst = 1 / 60;         // 垂直同步周期估计（rAF 间隔 EMA）
   let lastFrameAt = performance.now();
   let pendingSettle = null;      // { face, pos, at } —— 等画面「演到」结算时刻再触发可见/可听反馈
@@ -38,19 +42,31 @@ function boot() {
   if (hud) {
     hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:9999;background:rgba(0,0,0,.72);color:#7dff9b;font:12px/1.5 Consolas,monospace;padding:8px 10px;border-radius:8px;pointer-events:none;white-space:pre;transition:box-shadow .12s;';
     document.body.appendChild(hud);
+    // 校准键：[ / ] = 补偿量 ±25ms，S = 保存为默认（localStorage 持久），X = 清除恢复自动
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '[' || e.key === ']') {
+        const cur = manualDelayMs !== null ? manualDelayMs : Math.round(scene.renderDelay * 1000);
+        manualDelayMs = Math.max(0, Math.min(800, cur + (e.key === ']' ? 25 : -25)));
+      } else if (e.key === 's' || e.key === 'S') {
+        if (manualDelayMs !== null) localStorage.setItem('coin-flip-avdelay-ms', String(Math.round(manualDelayMs)));
+      } else if (e.key === 'x' || e.key === 'X') {
+        localStorage.removeItem('coin-flip-avdelay-ms');
+      }
+    });
   }
   let fpsEst = 60;
 
   function computeRenderDelay() {
-    if (avDelayOverride !== null) {
-      scene.renderDelay = avDelayOverride;
+    if (manualDelayMs !== null) {
+      scene.renderDelay = manualDelayMs / 1000;
       return;
     }
     const rawDt = (performance.now() - lastFrameAt) / 1000;
     if (rawDt > 0.001 && rawDt < 0.25) vsyncEst += (rawDt - vsyncEst) * 0.05;
-    // 目标延迟 = 输出延迟 − 半个垂直同步（画面还有合成上屏延迟，取半帧折中）
+    // 目标延迟 = 输出延迟 − 半个垂直同步（画面还有合成上屏延迟，取半帧折中）。
+    // 上限 0.5s：蓝牙/系统音频增强等设备的真实延迟可达 200-400ms，旧上限 150ms 数学上就追不上
     const target = sound.enabled
-      ? Math.min(0.15, Math.max(0, sound.audioLatency - 0.5 * vsyncEst))
+      ? Math.min(0.5, Math.max(0, sound.audioLatency - 0.5 * vsyncEst))
       : 0;
     scene.renderDelay += (target - scene.renderDelay) * 0.1; // 平滑防跳变
   }
@@ -151,7 +167,8 @@ function boot() {
         'ctx: ' + (sound.ctx ? sound.ctx.state : '-') + '\n' +
         'outputLatency: ' + (lat == null ? 'n/a' : (lat * 1000).toFixed(1) + 'ms') + '\n' +
         'baseLatency: ' + (base == null ? 'n/a' : (base * 1000).toFixed(1) + 'ms') + '\n' +
-        'renderDelay: ' + (scene.renderDelay * 1000).toFixed(1) + 'ms' + (scene.renderDelay >= 0.149 ? '（已达上限）' : '') + '\n' +
+        'renderDelay: ' + (scene.renderDelay * 1000).toFixed(1) + 'ms\n' +
+        'avdelay: ' + (manualDelayMs === null ? 'auto' : Math.round(manualDelayMs) + 'ms') + '  [ ]=±25ms S=保存 X=清除\n' +
         'fps: ' + fpsEst.toFixed(0) + '\n' +
         '红框闪烁 = 碰撞声此刻被调度';
     }

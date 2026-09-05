@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v3'; // v3: ?avdebug=1 音画诊断 HUD（cache-first 下不升版本浏览器会一直供旧 bundle）
+const CACHE = 'coin-flip-v4'; // v4: 补偿上限 150→500ms + HUD 校准键（[ ]=±25ms S=持久保存）
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {
