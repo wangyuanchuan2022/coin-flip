@@ -1,0 +1,25 @@
+{
+  "name": "coin_flip",
+  "version": "1.0.0",
+  "description": "Web-based coin flip simulator with real rigid-body physics (three.js + cannon-es)",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --minify --target=es2019 \"--loader:.glb=dataurl\" \"--loader:.jpg=dataurl\" \"--loader:.png=dataurl\" \"--loader:.wav=dataurl\" --outfile=dist/bundle.js"
+  },
+  "keywords": [
+    "coin-flip",
+    "physics",
+    "threejs",
+    "cannon-es"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "cannon-es": "^0.20.0",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

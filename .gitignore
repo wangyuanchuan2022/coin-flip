@@ -1,0 +1,6 @@
+node_modules/
+.npm-cache/
+.verify/
+assets/
+debug/
+assets/
