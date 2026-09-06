@@ -277,10 +277,14 @@ export class CoinScene {
     const v0 = new THREE.Vector3(ic.v[0], ic.v[1], ic.v[2]);
     const g = new THREE.Vector3(ic.g[0], ic.g[1], ic.g[2]);
     const delay = this.renderDelay;
+    // 顶点飞行时间（vy 归零点），用于把收敛减速点藏进硬币的自然悬停里
+    const fApex = THREE.MathUtils.clamp(ic.v[1] / Math.max(0.1, -ic.g[1]), 0.25, 0.9);
+    const tau = launchTau(delay, fApex);
     this._launch = {
       s0: this.simClock,
       delay,
-      total: LAUNCH_LIFT + Math.max(1.2, 4 * launchTau(delay)),
+      tau,
+      total: LAUNCH_LIFT + 2.8 * tau,
       q0: new THREE.Quaternion(ic.q[0], ic.q[1], ic.q[2], ic.q[3]).normalize(),
       axis: wLen > 1e-4 ? new THREE.Vector3(ic.w[0] / wLen, ic.w[1] / wLen, ic.w[2] / wLen) : new THREE.Vector3(0, 1, 0),
       wMag: wLen,
@@ -381,7 +385,7 @@ export class CoinScene {
       } else {
         // 飞行段：从真实变换历史按「提前的飞行时间」取样——包含真实碰撞/阻尼/积分细节，
         // 时间轴渐近汇入延迟画面，结束点与画面重合，无跳变
-        const ft = launchFlightTime(t, L.delay);
+        const ft = launchFlightTime(t, L.delay, L.tau);
         if (this._coinStateAt(L.s0 + ft)) {
           this.coinVisual.position.copy(this._tmpP);
           this.coinVisual.quaternion.copy(this._tmpQ);
