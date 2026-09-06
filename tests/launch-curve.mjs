@@ -51,5 +51,11 @@ const mainSrc = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf
 assert(/scene\.playLaunch\(\{/.test(mainSrc), 'main.js 传入本次抛掷初始条件');
 assert(/physics\.world\.gravity/.test(mainSrc), 'main.js 使用真实重力向量');
 
+// 4) 相机定格接线契约：held 定格 + 3 秒展示窗口
+assert(/if \(state === 'held'\) return/.test(sceneSrc), 'scene.js followCoin 支持 held 定格');
+assert(/settleHoldUntil = performance\.now\(\) \+ 3000/.test(mainSrc), 'main.js 结算后定格 3 秒');
+assert(/performance\.now\(\) < settleHoldUntil \? 'held'/.test(mainSrc), 'main.js 展示窗口内相机保持定格');
+assert(/settleHoldUntil = 0;/.test(mainSrc), '再投立即解除定格（相机直接切入追踪，避免闪回）');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

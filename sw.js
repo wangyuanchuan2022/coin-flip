@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v18'; // v18: 收敛减速点自适应移到补间硬币顶点时刻——大延迟下衔接无冻结卡顿
+const CACHE = 'coin-flip-v19'; // v19: 结算后相机定格 3 秒展示正面/背面再回初始位，再投直接切入追踪避免镜头闪回
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {

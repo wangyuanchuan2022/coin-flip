@@ -330,6 +330,7 @@ export class CoinScene {
   // 相机跟随：飞行时平滑追踪「延迟渲染后的硬币」（与用户所见的声画位置一致），
   // 静止后缓慢回位
   followCoin(state, dt) {
+    if (state === 'held') return; // 结算展示定格：相机保持当前位姿不动（展示窗口由 main.js 控制）
     const tracking = state === 'flying';
     const blend = 1 - Math.exp(-(tracking ? 5 : 2.2) * dt);
     if (tracking) {

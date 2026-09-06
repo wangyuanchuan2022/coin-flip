@@ -33,6 +33,7 @@ function boot() {
   let lastFrameAt = performance.now();
   let pendingSettle = null;      // { face, pos, at } —— 等画面「演到」结算时刻再触发可见/可听反馈
   let pendingDrop = null;
+  let settleHoldUntil = 0;       // 结算展示定格截止时刻：期间相机保持不动，正面/背面看满 3 秒
   let lastFace = null;           // 最近一次结果（分享卡片展示用）
 
   // 音画诊断 HUD（?avdebug=1）：实时暴露音画链路数字。
@@ -78,6 +79,7 @@ function boot() {
     if (physics.state === 'flying') return; // 飞行中不可重复抛
     if (pendingSettle) fireSettle(); // 上一投的展示还没播出就重抛：立即补齐（防结果丢失）
     if (pendingDrop) fireDrop();
+    settleHoldUntil = 0; // 再投即结束定格：相机直接从当前位姿切入追踪，避免回位途中转向的闪回
     sound.ensure(); // 用户手势内解锁 AudioContext
     sound.toss(scene.renderDelay); // 抛起音与延迟渲染的画面同步响起
     achievements.onThrow({ power, silent: !sound.enabled, viaDesk: !!viaDesk });
@@ -143,6 +145,7 @@ function boot() {
     ui.record(face, standing); // standing 必须传入：立住是第三种结果，单独计数（此前漏传导致立住被计入正/反面）
     ui.showResult(face, standing);
     ui.enterIdle();
+    settleHoldUntil = performance.now() + 3000; // 定格 3 秒展示正面/背面，之后相机才回初始位
   }
 
   function fireDrop() {
@@ -202,7 +205,9 @@ function boot() {
     // 相机跟随「画面状态」而非物理状态：结算/滚出的可见反馈要等画面演到那一刻
     // （renderDelay 补偿期间画面还在过去）。若相机按物理状态提前回位，画面里的
     // 硬币还在空中，结算瞬间就会出现「先撤走再拉回」的镜头抽搐。
-    const visualState = (pendingSettle || pendingDrop) ? 'flying' : physics.state;
+    // 结算后 3 秒定格展示（held），期间回初始位或再投都不会发生镜头闪回。
+    const visualState = (pendingSettle || pendingDrop) ? 'flying'
+      : (performance.now() < settleHoldUntil ? 'held' : physics.state);
     scene.followCoin(visualState, dt);
     scene.update(dt);
     scene.render();
