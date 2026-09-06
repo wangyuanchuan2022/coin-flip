@@ -3,4 +3,8 @@ node_modules/
 .verify/
 assets/
 debug/
-assets/
+release/
+.twa/
+build-apk.ps1
+*.keystore
+twa-site/
