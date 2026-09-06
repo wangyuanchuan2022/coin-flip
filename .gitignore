@@ -8,3 +8,8 @@ release/
 build-apk.ps1
 *.keystore
 twa-site/
+android-shell/app/src/main/assets/
+android-shell/app/build/
+android-shell/.gradle/
+android-shell/build/
+android-shell/local.properties
