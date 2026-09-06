@@ -83,7 +83,7 @@ function boot() {
     settleHoldUntil = 0; // 再投即结束定格：相机直接从当前位姿切入追踪，避免回位途中转向的闪回
     coinReturnAt = 0;
     sound.ensure(); // 用户手势内解锁 AudioContext
-    sound.toss(scene.renderDelay); // 抛起音与延迟渲染的画面同步响起
+    sound.toss(); // 起抛动画是即时跟手的，音效立即响（不再等 renderDelay——那是起抛动画之前的旧对齐策略）
     achievements.onThrow({ power, silent: !sound.enabled, viaDesk: !!viaDesk });
     scene.hideRing();
     ui.enterFlying();

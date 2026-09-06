@@ -577,6 +577,26 @@
   #achv-toast .t-title { font-size: 11px; letter-spacing: 0.3em; color: var(--muted); }
   #achv-toast .t-name { font-family: var(--serif); font-size: 18px; color: var(--gold); font-weight: 600; }
 
+  /* APK 离线壳回退：WebView 缺 backdrop-filter 时白渐变会呈金属感——宿主检测挂 no-glass 后整壳改深色磨砂 */
+  .no-glass .glass-btn {
+    background: linear-gradient(-75deg, rgba(34, 34, 64, 0.92), rgba(52, 52, 94, 0.94), rgba(34, 34, 64, 0.92));
+  }
+  .no-glass .glass-btn:hover {
+    background: linear-gradient(-75deg, rgba(46, 46, 84, 0.94), rgba(66, 66, 112, 0.95), rgba(46, 46, 84, 0.94));
+  }
+  .no-glass .power-group,
+  .no-glass .stats-card,
+  .no-glass .achv-entry {
+    background: var(--card);
+  }
+  .no-glass .glass-btn,
+  .no-glass .power-group,
+  .no-glass .stats-card,
+  .no-glass .achv-entry {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
   /* 移动端 */
   @media (max-width: 640px) {
     header { padding: 18px 20px; }
@@ -599,6 +619,12 @@
     .glass-btn:hover, .glass-btn:active, .achv-entry:hover, .achv-entry:active { transform: none; }
   }
 </style>
+  <script>
+    // APK 离线壳宿主检测：WebView 缺 backdrop-filter，玻璃会呈金属感——挂 no-glass 回退深色磨砂
+    if (location.hostname === 'appassets.androidplatform.net') {
+      document.documentElement.classList.add('no-glass');
+    }
+  </script>
 </head>
 <body>
   <div id="scene-container"></div>

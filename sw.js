@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v22'; // v22: 主按钮/力度组/统计面板/成就行玻璃化（@property 边环扫掠 + 扫光 + 按压 3D）；头部小按钮与弹窗保持原样式
+const CACHE = 'coin-flip-v24'; // v24: 起抛音效立即响（起抛动画已即时，不再等 renderDelay）+ APK 离线壳 no-glass 回退（深色磨砂，修 WebView 金属感按钮）
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {
