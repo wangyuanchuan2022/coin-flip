@@ -82,6 +82,7 @@ function boot() {
     sound.toss(scene.renderDelay); // 抛起音与延迟渲染的画面同步响起
     achievements.onThrow({ power, silent: !sound.enabled, viaDesk: !!viaDesk });
     scene.hideRing();
+    scene.playLaunch(); // 起抛补间：按下硬币立即弹起（不跟手对策；纯视觉）
     ui.enterFlying();
     physics.throwCoin(power);
   }
@@ -190,7 +191,11 @@ function boot() {
     computeRenderDelay();
 
     scene.applyCoinAt(scene.simClock - scene.renderDelay);
-    scene.followCoin(physics.state, dt);
+    // 相机跟随「画面状态」而非物理状态：结算/滚出的可见反馈要等画面演到那一刻
+    // （renderDelay 补偿期间画面还在过去）。若相机按物理状态提前回位，画面里的
+    // 硬币还在空中，结算瞬间就会出现「先撤走再拉回」的镜头抽搐。
+    const visualState = (pendingSettle || pendingDrop) ? 'flying' : physics.state;
+    scene.followCoin(visualState, dt);
     scene.update(dt);
     scene.render();
 

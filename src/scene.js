@@ -2,6 +2,7 @@
 // 风格来源：ui-ux-pro-max 数据库 3d-and-hyperrealism × Theater/Cinema「Dramatic dark + spotlight gold」
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { launchOffsetY, LAUNCH_DURATION } from './launch-curve.js';
 import woodColorUrl from '../assets/wood-color.jpg';
 import woodRoughUrl from '../assets/wood-rough.jpg';
 import woodNormalUrl from '../assets/wood-normal.jpg';
@@ -48,6 +49,8 @@ export class CoinScene {
     this.lookCur = this.restLook.clone();
     this.camCur = this.camBase.clone();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.launchElapsed = 0;   // 起抛补间已播放时长
+    this.launchActive = false;
 
     // —— 音画同步：渲染延迟补偿 ——
     // 声音按「现在」调度，最早也要 ctx.outputLatency 后才到达扬声器；把画面渲染
@@ -250,6 +253,16 @@ export class CoinScene {
     this.resultRing.visible = false;
   }
 
+  // 起抛动画：按下抛掷的瞬间让硬币「立即」动起来的一段预烘焙补间。
+  // 延迟渲染会把画面留在过去 renderDelay 秒，按下按钮后画面里的硬币迟迟不动（不跟手）；
+  // 这段补间叠加在画面之上：起始即有速度（跟手），峰值后平滑归零，与随后的物理轨迹无缝交接。
+  // 纯视觉，不影响物理结果与统计；dt 驱动，确定性回放（视频采集）同样适用。
+  playLaunch() {
+    if (this.reducedMotion) return;
+    this.launchElapsed = 0;
+    this.launchActive = true;
+  }
+
   // 金色粒子迸发（结算庆祝）；edge = 立住彩蛋：冲天金柱，更高更久
   burst(pos, edge = false) {
     if (edge) this.particleDuration = 1.7;
@@ -308,6 +321,18 @@ export class CoinScene {
   }
 
   update(dt) {
+    // 起抛补间：主循环里 applyCoinAt 每帧重写硬币位姿之后再叠加（render 前），
+    // 因此不污染变换历史，也不影响相机跟随与碰撞声画对齐
+    if (this.launchActive) {
+      this.launchElapsed += dt;
+      const t = this.launchElapsed;
+      if (t >= LAUNCH_DURATION) {
+        this.launchActive = false;
+      } else if (this.coinVisual) {
+        this.coinVisual.position.y += launchOffsetY(t);
+      }
+    }
+
     // 结果光环呼吸
     if (this.resultRing.visible) {
       const s = 1 + Math.sin(performance.now() * 0.004) * 0.045;
