@@ -2,9 +2,10 @@
   "name": "coin_flip",
   "version": "1.0.0",
   "description": "Web-based coin flip simulator with real rigid-body physics (three.js + cannon-es)",
-  "main": "index.js",
+  "main": "electron/main.cjs",
   "scripts": {
-    "build": "esbuild src/main.js --bundle --format=iife --minify --target=es2019 \"--loader:.glb=dataurl\" \"--loader:.jpg=dataurl\" \"--loader:.png=dataurl\" \"--loader:.wav=dataurl\" --outfile=dist/bundle.js"
+    "build": "esbuild src/main.js --bundle --format=iife --minify --target=es2019 \"--loader:.glb=dataurl\" \"--loader:.jpg=dataurl\" \"--loader:.png=dataurl\" \"--loader:.wav=dataurl\" --outfile=dist/bundle.js",
+    "build:exe": "electron-builder --win portable"
   },
   "keywords": [
     "coin-flip",
@@ -12,14 +13,44 @@
     "threejs",
     "cannon-es"
   ],
-  "author": "",
+  "author": "wangyuanchuan2022",
   "license": "ISC",
   "type": "module",
+  "build": {
+    "appId": "com.wangyuanchuan2022.coinflip",
+    "productName": "抛硬币模拟器",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "index.html",
+      "dist/**/*",
+      "manifest.json",
+      "sw.js",
+      "icon.svg",
+      "icon-192.png",
+      "icon-512.png"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "CoinFlip-portable-${version}.exe"
+    }
+  },
   "dependencies": {
     "cannon-es": "^0.20.0",
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@bubblewrap/cli": "^1.25.0",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "jsqr": "^1.4.0"
   }
