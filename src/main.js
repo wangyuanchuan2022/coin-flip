@@ -82,9 +82,17 @@ function boot() {
     sound.toss(scene.renderDelay); // 抛起音与延迟渲染的画面同步响起
     achievements.onThrow({ power, silent: !sound.enabled, viaDesk: !!viaDesk });
     scene.hideRing();
-    scene.playLaunch(); // 起抛补间：按下硬币立即弹起（不跟手对策；纯视觉）
     ui.enterFlying();
     physics.throwCoin(power);
+    // 起抛动画：throwCoin 之后立即采集初始条件，把本次真实抛物线提前渲染（跟手；纯视觉）
+    const lb = physics.coinBody;
+    scene.playLaunch({
+      p: [lb.position.x, lb.position.y, lb.position.z],
+      v: [lb.velocity.x, lb.velocity.y, lb.velocity.z],
+      g: [physics.world.gravity.x, physics.world.gravity.y, physics.world.gravity.z],
+      q: [lb.quaternion.x, lb.quaternion.y, lb.quaternion.z, lb.quaternion.w],
+      w: [lb.angularVelocity.x, lb.angularVelocity.y, lb.angularVelocity.z],
+    });
   }
 
   const ui = new CoinUI({

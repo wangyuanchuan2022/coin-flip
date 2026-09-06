@@ -2,7 +2,10 @@
 // 风格来源：ui-ux-pro-max 数据库 3d-and-hyperrealism × Theater/Cinema「Dramatic dark + spotlight gold」
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { launchOffsetY, LAUNCH_DURATION } from './launch-curve.js';
+import { launchFlightTime, LAUNCH_LIFT, LAUNCH_TOTAL } from './launch-curve.js';
+
+const _lq1 = new THREE.Quaternion();
+const _lq2 = new THREE.Quaternion();
 import woodColorUrl from '../assets/wood-color.jpg';
 import woodRoughUrl from '../assets/wood-rough.jpg';
 import woodNormalUrl from '../assets/wood-normal.jpg';
@@ -253,12 +256,25 @@ export class CoinScene {
     this.resultRing.visible = false;
   }
 
-  // 起抛动画：按下抛掷的瞬间让硬币「立即」动起来的一段预烘焙补间。
-  // 延迟渲染会把画面留在过去 renderDelay 秒，按下按钮后画面里的硬币迟迟不动（不跟手）；
-  // 这段补间叠加在画面之上：起始即有速度（跟手），峰值后平滑归零，与随后的物理轨迹无缝交接。
-  // 纯视觉，不影响物理结果与统计；dt 驱动，确定性回放（视频采集）同样适用。
-  playLaunch() {
-    if (this.reducedMotion) return;
+  // 起抛动画：把「本次抛掷的真实抛物线」提前渲染（不跟手对策）。
+  // ic = 抛出瞬间的初始条件 { p:[3], v:[3], g:[3], q:[4], w:[3] }（throwCoin 之后立即采集）。
+  // 两段式：抬手段（桌面静止位 → 抛出点，Hermite 弧 + 整圈翻面）→
+  // 飞行段（真实抛物线 + 真实自旋，时间轴从「提前 renderDelay」渐近收敛回延迟画面，
+  // 起始斜率恰为 1 与抬手段出口速度无缝）。纯视觉：不改物理/统计，dt 驱动可确定性回放。
+  playLaunch(ic) {
+    if (this.reducedMotion || !ic) return;
+    const wLen = Math.hypot(ic.w[0], ic.w[1], ic.w[2]);
+    this._launch = {
+      p0: new THREE.Vector3(ic.p[0], ic.p[1], ic.p[2]),
+      v0: new THREE.Vector3(ic.v[0], ic.v[1], ic.v[2]),
+      g: new THREE.Vector3(ic.g[0], ic.g[1], ic.g[2]),
+      q0: new THREE.Quaternion(ic.q[0], ic.q[1], ic.q[2], ic.q[3]).normalize(),
+      axis: wLen > 1e-4 ? new THREE.Vector3(ic.w[0] / wLen, ic.w[1] / wLen, ic.w[2] / wLen) : new THREE.Vector3(0, 1, 0),
+      wMag: wLen,
+      restP: this.coinVisual ? this.coinVisual.position.clone() : this.delayedPos.clone(),
+      restQ: this.coinVisual ? this.coinVisual.quaternion.clone() : new THREE.Quaternion(),
+      va: new THREE.Vector3(ic.v[0] * 0.45, ic.v[1] * 0.45, ic.v[2] * 0.45),
+    };
     this.launchElapsed = 0;
     this.launchActive = true;
   }
@@ -321,15 +337,40 @@ export class CoinScene {
   }
 
   update(dt) {
-    // 起抛补间：主循环里 applyCoinAt 每帧重写硬币位姿之后再叠加（render 前），
-    // 因此不污染变换历史，也不影响相机跟随与碰撞声画对齐
+    // 起抛动画（真实抛物线提前渲染）：主循环里 applyCoinAt 每帧重写硬币位姿之后再
+    // 覆盖（render 前），不污染变换历史，也不影响相机跟随与碰撞声画对齐。
     if (this.launchActive) {
       this.launchElapsed += dt;
       const t = this.launchElapsed;
-      if (t >= LAUNCH_DURATION) {
+      const L = this._launch;
+      if (!L || !this.coinVisual || t >= LAUNCH_TOTAL) {
         this.launchActive = false;
-      } else if (this.coinVisual) {
-        this.coinVisual.position.y += launchOffsetY(t);
+      } else if (t < LAUNCH_LIFT) {
+        // 抬手段：Hermite(rest→p0, va→v0) + 整圈翻面（两端点姿态精确）
+        const u = t / LAUNCH_LIFT;
+        const k = 1 - (1 - u) * (1 - u);
+        const h00 = 2 * k * k * k - 3 * k * k + 1;
+        const h10 = k * k * k - 2 * k * k + k;
+        const h01 = -2 * k * k * k + 3 * k * k;
+        const h11 = k * k * k - k * k;
+        this.coinVisual.position.set(
+          h00 * L.restP.x + h10 * LAUNCH_LIFT * L.va.x + h01 * L.p0.x + h11 * LAUNCH_LIFT * L.v0.x,
+          h00 * L.restP.y + h10 * LAUNCH_LIFT * L.va.y + h01 * L.p0.y + h11 * LAUNCH_LIFT * L.v0.y,
+          h00 * L.restP.z + h10 * LAUNCH_LIFT * L.va.z + h01 * L.p0.z + h11 * LAUNCH_LIFT * L.v0.z
+        );
+        _lq1.copy(L.restQ).slerp(L.q0, k);
+        _lq2.setFromAxisAngle(L.axis, 2 * Math.PI * (1 - k));
+        this.coinVisual.quaternion.copy(_lq1).multiply(_lq2);
+      } else {
+        // 飞行段：真实抛物线 + 真实自旋，飞行时间轴按 launchFlightTime 从提前渐近收敛回延迟画面
+        const ft = launchFlightTime(t, this.renderDelay);
+        this.coinVisual.position.set(
+          L.p0.x + L.v0.x * ft + 0.5 * L.g.x * ft * ft,
+          L.p0.y + L.v0.y * ft + 0.5 * L.g.y * ft * ft,
+          L.p0.z + L.v0.z * ft + 0.5 * L.g.z * ft * ft
+        );
+        _lq2.setFromAxisAngle(L.axis, L.wMag * ft);
+        this.coinVisual.quaternion.copy(L.q0).multiply(_lq2);
       }
     }
 
