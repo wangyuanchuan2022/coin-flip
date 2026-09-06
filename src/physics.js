@@ -230,6 +230,18 @@ export class CoinPhysics {
     if (this.onSettle) this.onSettle(face, standing);
   }
 
+  // 结算展示完毕后把硬币送回台面中心初始位（等待下一次抛掷；不改变结算状态）。
+  // 注意：update() 对非飞行态直接返回、不 stepping，因此此处的传送由 main 注入
+  // 变换历史样本后才会在延迟画面中可见。
+  returnToCenter() {
+    const b = this.coinBody;
+    b.velocity.setZero();
+    b.angularVelocity.setZero();
+    b.position.set(0, COIN.thickness / 2 + 0.001, 0);
+    b.quaternion.set(0, 0, 0, 1);
+    this.stillTimer = 0;
+  }
+
   // 硬币滚出台面掉落：摆回中心平躺，等待下一次抛掷
   _handleDrop() {
     const b = this.coinBody;

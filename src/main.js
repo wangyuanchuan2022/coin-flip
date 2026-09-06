@@ -34,6 +34,7 @@ function boot() {
   let pendingSettle = null;      // { face, pos, at } —— 等画面「演到」结算时刻再触发可见/可听反馈
   let pendingDrop = null;
   let settleHoldUntil = 0;       // 结算展示定格截止时刻：期间相机保持不动，正面/背面看满 3 秒
+  let coinReturnAt = 0;          // 硬币回中时刻：结算可见 1 秒后送回台面中心初始位
   let lastFace = null;           // 最近一次结果（分享卡片展示用）
 
   // 音画诊断 HUD（?avdebug=1）：实时暴露音画链路数字。
@@ -80,6 +81,7 @@ function boot() {
     if (pendingSettle) fireSettle(); // 上一投的展示还没播出就重抛：立即补齐（防结果丢失）
     if (pendingDrop) fireDrop();
     settleHoldUntil = 0; // 再投即结束定格：相机直接从当前位姿切入追踪，避免回位途中转向的闪回
+    coinReturnAt = 0;
     sound.ensure(); // 用户手势内解锁 AudioContext
     sound.toss(scene.renderDelay); // 抛起音与延迟渲染的画面同步响起
     achievements.onThrow({ power, silent: !sound.enabled, viaDesk: !!viaDesk });
@@ -146,6 +148,7 @@ function boot() {
     ui.showResult(face, standing);
     ui.enterIdle();
     settleHoldUntil = performance.now() + 3000; // 定格 3 秒展示正面/背面，之后相机才回初始位
+    coinReturnAt = performance.now() + Math.max(200, 1000 - scene.renderDelay * 1000); // 结算可见 1s 后硬币回中（扣除画面延迟）
   }
 
   function fireDrop() {
@@ -228,6 +231,12 @@ function boot() {
 
     if (pendingSettle && scene.simClock - pendingSettle.at >= scene.renderDelay) fireSettle();
     if (pendingDrop && scene.simClock - pendingDrop.at >= scene.renderDelay) fireDrop();
+    // 硬币回中：结算可见 1 秒后送回台面中心初始位（注入变换历史样本，延迟画面随即呈现）
+    if (coinReturnAt && performance.now() >= coinReturnAt && physics.state === 'settled') {
+      physics.returnToCenter();
+      scene.pushCoinSample({ interpolatedPosition: physics.coinBody.position, interpolatedQuaternion: physics.coinBody.quaternion });
+      coinReturnAt = 0;
+    }
 
     lastFrameAt = performance.now();
   }

@@ -90,8 +90,40 @@ const KEY = 'coin-flip-achievements-v1';
   const m = freshMgr();
   [...Array(49).fill('heads'), ...Array(51).fill('tails')].forEach((f) => m.onSettle(f));
   assert(!has(m, 'balance'), 'balance NOT at 49/51@100');
-  m.onSettle('heads'); // 101 次 50/51
-  assert(!has(m, 'balance'), 'balance stays locked past 100 (50/51)');
+  m.onSettle('heads'); // 101 次：窗口滑出最早的正 → 仍 49/51
+  assert(!has(m, 'balance'), 'balance stays locked (rolling window 49/51)');
+}
+
+// —— 用例 5b：滚动窗口——滑出旧状态后新窗口可再达均衡 ——
+{
+  const m = freshMgr();
+  [...Array(55).fill('heads'), ...Array(45).fill('tails')].forEach((f) => m.onSettle(f));
+  assert(!has(m, 'balance'), 'balance NOT at 100-window 55/45');
+  [...Array(5).fill('tails')].forEach((f) => m.onSettle(f)); // 窗口滑出 5 正 → 50/50
+  assert(has(m, 'balance'), 'balance unlocks when rolling window reaches 50/50');
+  const bal = ACHIEVEMENTS.find((a) => a.id === 'balance');
+  const [cur, goal] = m.progress(bal);
+  assert(cur === 100 && goal === 100, 'balance progress reads [100,100] at full window');
+}
+
+// —— 用例 5c：立姿不进窗口、不阻断均衡判定 ——
+{
+  const m = freshMgr();
+  for (let i = 0; i < 50; i++) {
+    m.onSettle('heads');
+    if (i === 24) m.onSettle('tails', true); // 立姿（第三结果，不计入窗口）
+    m.onSettle('tails');
+  }
+  assert(has(m, 'balance'), 'standing settle excluded from window, balance still works');
+  assert(has(m, 'edge-stand'), 'edge-stand still unlocked by standing');
+}
+
+// —— 用例 5d：旧档缺 recent 字段的迁移防御 ——
+{
+  const m = freshMgr();
+  m.state.counters.recent = undefined; // 模拟旧存档缺字段
+  m.onSettle('heads');
+  assert(m.state.counters.recent.length === 1, 'missing recent field auto-rebuilt on settle');
 }
 
 // —— 用例 6：力度/静音/台面点击/午夜（时间注入）——

@@ -20,7 +20,7 @@ export const ACHIEVEMENTS = [
   { id: 'drop', glyph: '坠', name: '桌面之外', desc: '硬币滚出台面掉落', hidden: true, check: (c) => c.drop >= 1, progress: (c) => [Math.min(c.drop, 1), 1] },
   { id: 'heavy-30', glyph: '力', name: '大力出奇迹', desc: '使用大力档抛掷 30 次', hidden: true, check: (c) => c.heavy >= 30, progress: (c) => [Math.min(c.heavy, 30), 30] },
   { id: 'silent-10', glyph: '默', name: '无声的命运', desc: '静音状态下抛掷 10 次', hidden: true, check: (c) => c.silent >= 10, progress: (c) => [Math.min(c.silent, 10), 10] },
-  { id: 'balance', glyph: '衡', name: '完美均衡', desc: '累计 100 次时正反恰好各 50', hidden: true, check: (c) => c.total === 100 && c.heads === 50 && c.tails === 50, progress: (c) => [Math.min(c.total, 100), 100] },
+  { id: 'balance', glyph: '衡', name: '完美均衡', desc: '最近 100 次正反恰好各 50', hidden: true, check: (c) => c.recent.length === 100 && c.recent.filter((f) => f === 'heads').length === 50, progress: (c) => [Math.min(c.recent.length, 100), 100] },
   { id: 'midnight', glyph: '夜', name: '午夜抉择', desc: '在午夜 0 点至 1 点间抛掷', hidden: true, check: (c) => c.midnight >= 1, progress: (c) => [Math.min(c.midnight, 1), 1] },
   { id: 'desk-20', glyph: '指', name: '指尖命运', desc: '直接点击台面抛掷 20 次', hidden: true, check: (c) => c.desk >= 20, progress: (c) => [Math.min(c.desk, 20), 20] },
   { id: 'edge-stand', glyph: '立', name: '一线之间', desc: '硬币以立姿停稳在桌面上（极稀有）', hidden: true, check: (c) => c.edgeStand >= 1, progress: (c) => [Math.min(c.edgeStand, 1), 1] },
@@ -30,6 +30,7 @@ const EMPTY_COUNTERS = {
   total: 0, heads: 0, tails: 0, drop: 0, heavy: 0,
   silent: 0, desk: 0, midnight: 0, streakFace: 0, streakLast: '',
   edgeStand: 0,
+  recent: [], // 最近 100 次正/反面貌的滚动窗口（立姿不计入）
 };
 
 export class AchievementManager {
@@ -46,13 +47,16 @@ export class AchievementManager {
       if (raw) {
         const s = JSON.parse(raw);
         if (s && s.unlocked && s.counters) {
-          return { unlocked: s.unlocked, counters: Object.assign({}, EMPTY_COUNTERS, s.counters) };
+          const counters = Object.assign({}, EMPTY_COUNTERS, s.counters);
+          // recent 必须是本实例私有数组：EMPTY_COUNTERS.recent 是共享引用，直接借用会跨实例污染
+          if (!Array.isArray(counters.recent)) counters.recent = [];
+          return { unlocked: s.unlocked, counters };
         }
       }
     } catch {
       /* 损坏的存档按全新处理 */
     }
-    return { unlocked: {}, counters: Object.assign({}, EMPTY_COUNTERS) };
+    return { unlocked: {}, counters: Object.assign({}, EMPTY_COUNTERS, { recent: [] }) };
   }
 
   _save() {
@@ -109,6 +113,10 @@ export class AchievementManager {
       else c.tails += 1;
       c.streakFace = face === c.streakLast ? c.streakFace + 1 : 1;
       c.streakLast = face;
+      // 滚动窗口：完美均衡成就按「最近 100 次正/反」判定（立姿不计入窗口）
+      if (!Array.isArray(c.recent)) c.recent = []; // 旧档迁移防御
+      c.recent.push(face);
+      if (c.recent.length > 100) c.recent.shift();
     }
     this.evaluate();
     this._save();
