@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抛硬币模拟器 · Coin Flip Simulator</title>
+<meta name="description" content="基于 three.js 与 cannon-es 物理引擎的网页版抛硬币模拟器">
+<meta name="theme-color" content="#0f0f23">
+<link rel="manifest" href="./manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap">
+<style>
+  :root {
+    --bg: #0f0f23;
+    --card: rgba(27, 27, 48, 0.72);
+    --card-border: rgba(255, 255, 255, 0.10);
+    --fg: #f8fafc;
+    --muted: #94a3b8;
+    --gold: #e8b54a;
+    --gold-deep: #ca8a04;
+    --gold-dark: #6b470c;
+    --silver: #cfd8ff;
+    --serif: 'Playfair Display', 'STZhongsong', 'SimSun', Georgia, 'Times New Roman', serif;
+    --sans: 'Inter', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #scene-container { position: fixed; inset: 0; }
+  #scene-container canvas { display: block; }
+  .vignette {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 120% 90% at 50% 42%, transparent 42%, rgba(6, 6, 18, 0.55) 100%),
+      linear-gradient(to bottom, rgba(6, 6, 18, 0.35), transparent 22%, transparent 78%, rgba(6, 6, 18, 0.5));
+  }
+
+  /* 顶部 */
+  header {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 26px 36px;
+    pointer-events: none;
+  }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: 0.14em;
+    text-shadow: 0 0 24px rgba(232, 181, 74, 0.28);
+  }
+  .brand .subtitle {
+    margin: 6px 0 0;
+    font-size: 11px;
+    letter-spacing: 0.42em;
+    color: var(--gold);
+    opacity: 0.85;
+  }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  #gh-btn {
+    pointer-events: auto;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    backdrop-filter: blur(10px);
+    color: var(--fg);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 0.15s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  #gh-btn:hover { transform: scale(1.08); border-color: var(--gold); color: var(--gold); }
+  #gh-btn:active { transform: scale(0.94); }
+  #cal-btn {
+    pointer-events: auto;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    backdrop-filter: blur(10px);
+    color: var(--fg);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 0.15s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  #cal-btn:hover { transform: scale(1.08); border-color: var(--gold); color: var(--gold); }
+  #cal-btn:active { transform: scale(0.94); }
+  #share-btn {
+    pointer-events: auto;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    backdrop-filter: blur(10px);
+    color: var(--fg);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 0.15s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  #share-btn:hover { transform: scale(1.08); border-color: var(--gold); color: var(--gold); }
+  #share-btn:active { transform: scale(0.94); }
+  #sound-btn {
+    pointer-events: auto;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    backdrop-filter: blur(10px);
+    color: var(--fg);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 0.15s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  #sound-btn:hover { transform: scale(1.08); border-color: var(--gold); color: var(--gold); }
+  #sound-btn:active { transform: scale(0.94); }
+  #sound-btn.muted { color: var(--muted); }
+  #sound-btn .icon-off { display: none; }
+  #sound-btn.muted .icon-on { display: none; }
+  #sound-btn.muted .icon-off { display: block; }
+
+  /* 结果面板 */
+  #result-panel {
+    position: fixed;
+    left: 50%; top: 21%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+  }
+  #result-panel.show { animation: result-pop 0.6s cubic-bezier(0.2, 1.4, 0.3, 1) forwards; }
+  #result-face {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 96px;
+    letter-spacing: 0.18em;
+    line-height: 1.1;
+  }
+  #result-en {
+    margin-top: 6px;
+    font-size: 15px;
+    letter-spacing: 0.6em;
+    text-indent: 0.6em;
+    font-weight: 500;
+  }
+  #result-panel.heads #result-face { color: var(--gold); text-shadow: 0 0 34px rgba(232, 181, 74, 0.55), 0 0 90px rgba(232, 181, 74, 0.3); }
+  #result-panel.heads #result-en { color: var(--gold); opacity: 0.9; }
+  #result-panel.tails #result-face { color: var(--silver); text-shadow: 0 0 34px rgba(160, 178, 255, 0.55), 0 0 90px rgba(160, 178, 255, 0.3); }
+  #result-panel.tails #result-en { color: var(--silver); opacity: 0.9; }
+  @keyframes result-pop {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.55); filter: blur(14px); }
+    60% { opacity: 1; transform: translateX(-50%) scale(1.06); filter: blur(0); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1); filter: blur(0); }
+  }
+
+  /* 底部控制台 */
+  footer {
+    position: fixed;
+    left: 50%; bottom: 30px;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center;
+    gap: 14px;
+    pointer-events: none;
+    width: min(92vw, 560px);
+  }
+  .power-group {
+    pointer-events: auto;
+    display: flex;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    padding: 4px;
+    backdrop-filter: blur(10px);
+  }
+  .power-btn {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    padding: 7px 20px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .power-btn:hover { color: var(--fg); }
+  .power-btn.active {
+    color: var(--gold);
+    border-color: rgba(232, 181, 74, 0.5);
+    background: rgba(232, 181, 74, 0.1);
+  }
+  #throw-btn {
+    pointer-events: auto;
+    appearance: none;
+    border: none;
+    width: 230px;
+    padding: 19px 0;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: var(--serif);
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-indent: 0.3em;
+    color: var(--gold-dark);
+    background: radial-gradient(circle at 32% 28%, #ffe9ad, #e8b54a 45%, #b9822a 100%);
+    box-shadow:
+      0 0 0 1px rgba(255, 236, 180, 0.55) inset,
+      0 10px 34px rgba(202, 138, 4, 0.4),
+      0 2px 8px rgba(0, 0, 0, 0.45);
+    transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+  }
+  #throw-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(255, 236, 180, 0.7) inset,
+      0 14px 44px rgba(202, 138, 4, 0.55),
+      0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+  #throw-btn:active:not(:disabled) { transform: scale(0.96); }
+  #throw-btn:disabled {
+    cursor: default;
+    filter: saturate(0.45) brightness(0.72);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+  #throw-btn:focus-visible, .power-btn:focus-visible, #sound-btn:focus-visible, #cal-btn:focus-visible, #share-btn:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+  }
+
+  /* 统计卡 */
+  .stats-card {
+    pointer-events: auto;
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    padding: 14px 22px 12px;
+    backdrop-filter: blur(10px);
+  }
+  .stats-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .stat { display: flex; align-items: baseline; gap: 8px; }
+  .stat .label { font-size: 12px; letter-spacing: 0.18em; color: var(--muted); }
+  .stat .value { font-family: var(--serif); font-size: 24px; font-weight: 700; }
+  .stat.heads .value { color: var(--gold); }
+  .stat.tails .value { color: var(--silver); }
+  .stat.standing .value { color: #8fd3ff; }
+  .stat-center { text-align: center; }
+  .stat-center .value { font-size: 20px; }
+  #ratio-bar {
+    margin-top: 10px;
+    height: 4px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(160, 178, 255, 0.35);
+  }
+  #ratio-heads {
+    height: 100%;
+    width: 50%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold));
+    transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  #status-line {
+    margin: 2px 0 0;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* 成就系统 */
+  .achv-entry {
+    pointer-events: auto;
+    width: 100%;
+    display: flex; align-items: center; gap: 10px;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    color: var(--muted);
+    padding: 9px 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    transition: color 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+  }
+  .achv-entry:hover { color: var(--gold); border-color: rgba(232, 181, 74, 0.45); }
+  .achv-entry:active { transform: scale(0.99); }
+  .achv-count { margin-left: auto; color: var(--gold); font-family: var(--serif); font-weight: 700; }
+  #achv-panel {
+    position: fixed; inset: 0; z-index: 40;
+    background: rgba(6, 6, 18, 0.72);
+    backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center;
+  }
+  #achv-panel.show { display: flex; }
+  .achv-modal {
+    width: min(92vw, 680px);
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid rgba(232, 181, 74, 0.35);
+    border-radius: 20px;
+    padding: 22px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  }
+  .achv-modal-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .achv-modal-head h2 { margin: 0; font-family: var(--serif); font-size: 22px; letter-spacing: 0.2em; color: var(--gold); }
+  #achv-panel-count { color: var(--muted); font-size: 13px; letter-spacing: 0.1em; margin-right: auto; }
+  #achv-close { appearance: none; background: none; border: 1px solid var(--card-border); color: var(--muted); width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 1; }
+  #achv-close:hover { color: var(--gold); border-color: var(--gold); }
+  .achv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 700px) { .achv-grid { grid-template-columns: repeat(3, 1fr); } }
+  .achv-card {
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    display: flex; gap: 10px; align-items: flex-start;
+    min-height: 86px;
+  }
+  .achv-card.unlocked { border-color: rgba(232, 181, 74, 0.5); background: rgba(232, 181, 74, 0.07); }
+  .achv-glyph {
+    flex: 0 0 44px; height: 44px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    border: 1.5px solid var(--card-border);
+    font-family: var(--serif);
+    font-weight: 700; font-size: 16px;
+    color: var(--muted);
+  }
+  .achv-card.unlocked .achv-glyph { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 14px rgba(232, 181, 74, 0.25); }
+  .achv-body { flex: 1; min-width: 0; }
+  .achv-name { font-size: 14px; font-weight: 600; color: var(--fg); }
+  .achv-card.unlocked .achv-name { color: var(--gold); }
+  .achv-desc { margin-top: 3px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+  .achv-bar { margin-top: 8px; height: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+  .achv-bar-fill { height: 100%; background: var(--gold); border-radius: 999px; }
+  .achv-pct { margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+  .achv-done { margin-top: 8px; font-size: 11px; color: var(--gold); letter-spacing: 0.25em; }
+  #achv-toast {
+    position: fixed; top: 86px; left: 50%;
+    transform: translate(-50%, -24px);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card);
+    border: 1px solid rgba(232, 181, 74, 0.6);
+    border-radius: 14px;
+    padding: 12px 20px;
+    color: var(--fg);
+    box-shadow: 0 10px 40px rgba(202, 138, 4, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+  #achv-toast.show { animation: toast-in 0.5s cubic-bezier(0.2, 1.4, 0.3, 1) forwards; }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translate(-50%, -24px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+  #achv-toast svg { color: var(--gold); flex: 0 0 auto; }
+  #achv-toast .t-title { font-size: 11px; letter-spacing: 0.3em; color: var(--muted); }
+  #achv-toast .t-name { font-family: var(--serif); font-size: 18px; color: var(--gold); font-weight: 600; }
+
+  /* 移动端 */
+  @media (max-width: 640px) {
+    header { padding: 18px 20px; }
+    .brand h1 { font-size: 22px; }
+    #result-face { font-size: 62px; }
+    #throw-btn { width: 190px; padding: 16px 0; font-size: 19px; }
+    footer { bottom: 20px; gap: 10px; }
+    .stats-card { padding: 10px 16px 9px; }
+    .stat .value { font-size: 19px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #result-panel.show { animation: none; opacity: 1; }
+    #ratio-heads { transition: none; }
+    #throw-btn, #sound-btn, #cal-btn, #share-btn, .power-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div id="scene-container"></div>
+  <div class="vignette"></div>
+
+  <header>
+    <div class="brand">
+      <h1>抛硬币模拟器</h1>
+      <p class="subtitle">COIN FLIP · RIGID BODY PHYSICS</p>
+    </div>
+    <div class="header-actions">
+      <a id="gh-btn" class="icon-btn" href="https://github.com/wangyuanchuan2022/coin-flip" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库（欢迎 Star）" title="GitHub 仓库 · 欢迎 Star ⭐">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+      </a>
+      <button id="sound-btn" type="button" aria-label="切换音效">
+      <svg class="icon-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11 5 6 9H2v6h4l5 4V5z"/>
+        <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+        <path d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/>
+      </svg>
+      <svg class="icon-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11 5 6 9H2v6h4l5 4V5z"/>
+        <line x1="22" y1="9" x2="16" y2="15"/>
+        <line x1="16" y1="9" x2="22" y2="15"/>
+      </svg>
+    </button>
+      <button id="cal-btn" type="button" aria-label="音画延迟校准" title="音画延迟校准 · 跟着节拍按空格，自动测出补偿值并保存">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="8"/>
+          <circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/>
+          <path d="M12 2v2.6M12 19.4V22M2 12h2.6M19.4 12H22"/>
+        </svg>
+      </button>
+      <button id="share-btn" type="button" aria-label="分享" title="分享 · 二维码 / 结果卡片（含成就与统计）">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="3"/>
+          <circle cx="6" cy="12" r="3"/>
+          <circle cx="18" cy="19" r="3"/>
+          <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="result-panel" aria-live="polite">
+    <div id="result-face">正 面</div>
+    <div id="result-en">HEADS</div>
+  </div>
+
+  <footer>
+    <div class="power-group" role="group" aria-label="抛掷力度">
+      <button class="power-btn" type="button" data-power="0">轻 抛</button>
+      <button class="power-btn active" type="button" data-power="1">正 常</button>
+      <button class="power-btn" type="button" data-power="2">大 力</button>
+    </div>
+    <button id="throw-btn" type="button"><span class="btn-label">抛 硬 币</span></button>
+    <div class="stats-card">
+      <button id="achv-entry" class="achv-entry" type="button" aria-label="查看成就">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/>
+          <path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>
+        </svg>
+        <span>成 就</span>
+        <span id="achv-count" class="achv-count">0/16</span>
+      </button>
+      <div class="stats-row">
+        <div class="stat heads"><span class="label">正面</span><span class="value" id="stat-heads">0</span></div>
+        <div class="stat tails"><span class="label">反面</span><span class="value" id="stat-tails">0</span></div>
+        <div class="stat stat-center standing"><span class="label">站立</span><span class="value" id="stat-standing">0</span></div>
+        <div class="stat stat-center"><span class="label">总计</span><span class="value" id="stat-total">0</span></div>
+        <div class="stat stat-center"><span class="label">正面率</span><span class="value" id="stat-rate">—</span></div>
+      </div>
+      <div id="ratio-bar"><div id="ratio-heads"></div></div>
+      <p id="status-line">点击按钮、按下空格或直接点击台面抛掷</p>
+    </div>
+  </footer>
+
+  <div id="achv-panel" aria-hidden="true">
+    <div class="achv-modal">
+      <div class="achv-modal-head">
+        <h2>成 就</h2>
+        <span id="achv-panel-count"></span>
+        <button id="achv-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="achv-grid" class="achv-grid"></div>
+    </div>
+  </div>
+
+  <div id="achv-toast" role="status">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/>
+      <path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>
+    </svg>
+    <div>
+      <div class="t-title">成就解锁</div>
+      <div class="t-name" id="achv-toast-name"></div>
+    </div>
+  </div>
+
+  <script src="./dist/bundle.js"></script>
+  <script>
+    // Service Worker 预缓存：首次在线访问后资源持久缓存，离线/二次访问零下载
+    // （file:// 本地打开不注册也无需注册——资源已内联）
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
