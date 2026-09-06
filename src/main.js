@@ -148,7 +148,7 @@ function boot() {
     ui.showResult(face, standing);
     ui.enterIdle();
     settleHoldUntil = performance.now() + 3000; // 定格 3 秒展示正面/背面，之后相机才回初始位
-    coinReturnAt = performance.now() + Math.max(200, 1000 - scene.renderDelay * 1000); // 结算可见 1s 后硬币回中（扣除画面延迟）
+    coinReturnAt = performance.now() + Math.max(200, 3000 - scene.renderDelay * 1000); // 结算可见 3s 时硬币回中，与撤圈/撤提示/相机回位同步
   }
 
   function fireDrop() {
@@ -231,10 +231,13 @@ function boot() {
 
     if (pendingSettle && scene.simClock - pendingSettle.at >= scene.renderDelay) fireSettle();
     if (pendingDrop && scene.simClock - pendingDrop.at >= scene.renderDelay) fireDrop();
-    // 硬币回中：结算可见 1 秒后送回台面中心初始位（注入变换历史样本，延迟画面随即呈现）
+    // 硬币回中：结算可见 3 秒时与撤黄圈/撤结果提示/相机回位同步执行
     if (coinReturnAt && performance.now() >= coinReturnAt && physics.state === 'settled') {
       physics.returnToCenter();
       scene.pushCoinSample({ interpolatedPosition: physics.coinBody.position, interpolatedQuaternion: physics.coinBody.quaternion });
+      scene.hideRing(); // 同步撤掉落点黄圈
+      ui.hideResult(); // 同步撤掉正面/反面提示
+      scene.setRestLook(physics.coinBody.position); // 相机回位注视点同步改为中心的新硬币位置
       coinReturnAt = 0;
     }
 

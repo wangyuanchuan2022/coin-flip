@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v20'; // v20: 结算可见 1s 后硬币回中初始位；完美均衡改滚动窗口（最近 100 次正反恰各 50，立姿不计入）
+const CACHE = 'coin-flip-v21'; // v21: 硬币回中改为结算可见 3 秒，并与撤黄圈/撤结果提示/相机回位注视点同步
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {

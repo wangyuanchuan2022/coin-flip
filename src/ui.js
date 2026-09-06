@@ -90,6 +90,11 @@ export class CoinUI {
     this.els.resultEn.textContent = face === 'heads' ? 'HEADS' : 'TAILS';
   }
 
+  // 结算展示期结束（硬币回中）时同步撤掉结果提示
+  hideResult() {
+    this.els.resultPanel.classList.remove('show');
+  }
+
   record(face, standing = false) {
     // 站立是第三种结果：单独计数，不进正/反桶
     if (standing) {
