@@ -2,7 +2,7 @@
 // 风格来源：ui-ux-pro-max 数据库 3d-and-hyperrealism × Theater/Cinema「Dramatic dark + spotlight gold」
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { launchFlightTime, LAUNCH_LIFT, LAUNCH_TOTAL } from './launch-curve.js';
+import { launchFlightTime, launchTau, LAUNCH_LIFT } from './launch-curve.js';
 
 const _lq1 = new THREE.Quaternion();
 const _lq2 = new THREE.Quaternion();
@@ -209,11 +209,10 @@ export class CoinScene {
     while (h.length > 2 && h[0].t < cutoff) h.shift();
   }
 
-  // 把视觉硬币设为 renderTime（= simClock - renderDelay）时刻的状态，
-  // 并把该位置写入 delayedPos/delayedQuat 供相机跟随（GLB 未挂载时只更新跟随位置）。
-  applyCoinAt(renderTime) {
+  // 把硬币历史插值到 renderTime，结果写入 _tmpP/_tmpQ（applyCoinAt 与起抛动画共用）
+  _coinStateAt(renderTime) {
     const h = this.coinHistory;
-    if (h.length === 0) return;
+    if (h.length === 0) return false;
     let a;
     let b;
     if (renderTime <= h[0].t) {
@@ -239,6 +238,13 @@ export class CoinScene {
       this._tmpP.copy(a.p);
       this._tmpQ.copy(a.q);
     }
+    return true;
+  }
+
+  // 把视觉硬币设为 renderTime（= simClock - renderDelay）时刻的状态，
+  // 并把该位置写入 delayedPos/delayedQuat 供相机跟随（GLB 未挂载时只更新跟随位置）。
+  applyCoinAt(renderTime) {
+    if (!this._coinStateAt(renderTime)) return;
     this.delayedPos.copy(this._tmpP);
     this.delayedQuat.copy(this._tmpQ);
     if (this.coinVisual) {
@@ -256,24 +262,33 @@ export class CoinScene {
     this.resultRing.visible = false;
   }
 
-  // 起抛动画：把「本次抛掷的真实抛物线」提前渲染（不跟手对策）。
+  // 起抛动画：把「本次抛掷的真实轨迹」提前渲染（不跟手对策）。
   // ic = 抛出瞬间的初始条件 { p:[3], v:[3], g:[3], q:[4], w:[3] }（throwCoin 之后立即采集）。
-  // 两段式：抬手段（桌面静止位 → 抛出点，Hermite 弧 + 整圈翻面）→
-  // 飞行段（真实抛物线 + 真实自旋，时间轴从「提前 renderDelay」渐近收敛回延迟画面，
-  // 起始斜率恰为 1 与抬手段出口速度无缝）。纯视觉：不改物理/统计，dt 驱动可确定性回放。
+  // 两段式：
+  //   抬手段：桌面静止位 → 真实飞行位姿（飞行时间 LAUNCH_LIFT 处），Hermite 位置 +
+  //     世界系真实自旋全程积累（与 cannon 左乘积分一致）+ 一圈渐衰翻面，出口速率恰为真实 ω；
+  //   飞行段：从真实变换历史按「提前的飞行时间」取样——包含真实碰撞/阻尼/积分细节，
+  //     时间轴经高斯包络渐近汇入延迟画面，不重播、不跳变。
+  // 纯视觉：不改物理/统计，dt 驱动可确定性回放。
   playLaunch(ic) {
     if (this.reducedMotion || !ic) return;
     const wLen = Math.hypot(ic.w[0], ic.w[1], ic.w[2]);
+    const p0 = new THREE.Vector3(ic.p[0], ic.p[1], ic.p[2]);
+    const v0 = new THREE.Vector3(ic.v[0], ic.v[1], ic.v[2]);
+    const g = new THREE.Vector3(ic.g[0], ic.g[1], ic.g[2]);
+    const delay = this.renderDelay;
     this._launch = {
-      p0: new THREE.Vector3(ic.p[0], ic.p[1], ic.p[2]),
-      v0: new THREE.Vector3(ic.v[0], ic.v[1], ic.v[2]),
-      g: new THREE.Vector3(ic.g[0], ic.g[1], ic.g[2]),
+      s0: this.simClock,
+      delay,
+      total: LAUNCH_LIFT + Math.max(1.2, 4 * launchTau(delay)),
       q0: new THREE.Quaternion(ic.q[0], ic.q[1], ic.q[2], ic.q[3]).normalize(),
       axis: wLen > 1e-4 ? new THREE.Vector3(ic.w[0] / wLen, ic.w[1] / wLen, ic.w[2] / wLen) : new THREE.Vector3(0, 1, 0),
       wMag: wLen,
       restP: this.coinVisual ? this.coinVisual.position.clone() : this.delayedPos.clone(),
       restQ: this.coinVisual ? this.coinVisual.quaternion.clone() : new THREE.Quaternion(),
-      va: new THREE.Vector3(ic.v[0] * 0.45, ic.v[1] * 0.45, ic.v[2] * 0.45),
+      va: v0.clone().multiplyScalar(0.45),
+      pEnd: p0.clone().addScaledVector(v0, LAUNCH_LIFT).addScaledVector(g, 0.5 * LAUNCH_LIFT * LAUNCH_LIFT),
+      vEnd: v0.clone().addScaledVector(g, LAUNCH_LIFT),
     };
     this.launchElapsed = 0;
     this.launchActive = true;
@@ -343,10 +358,11 @@ export class CoinScene {
       this.launchElapsed += dt;
       const t = this.launchElapsed;
       const L = this._launch;
-      if (!L || !this.coinVisual || t >= LAUNCH_TOTAL) {
+      if (!L || !this.coinVisual || t >= L.total) {
         this.launchActive = false;
       } else if (t < LAUNCH_LIFT) {
-        // 抬手段：Hermite(rest→p0, va→v0) + 整圈翻面（两端点姿态精确）
+        // 抬手段：Hermite(rest→真实飞行位姿@LIFT) + 世界系真实自旋全程积累 + 渐衰整圈翻面
+        // （自旋左乘=世界系，与 cannon 积分一致；出口翻面速率归零、只剩真实 ω，无卡顿）
         const u = t / LAUNCH_LIFT;
         const k = 1 - (1 - u) * (1 - u);
         const h00 = 2 * k * k * k - 3 * k * k + 1;
@@ -354,23 +370,22 @@ export class CoinScene {
         const h01 = -2 * k * k * k + 3 * k * k;
         const h11 = k * k * k - k * k;
         this.coinVisual.position.set(
-          h00 * L.restP.x + h10 * LAUNCH_LIFT * L.va.x + h01 * L.p0.x + h11 * LAUNCH_LIFT * L.v0.x,
-          h00 * L.restP.y + h10 * LAUNCH_LIFT * L.va.y + h01 * L.p0.y + h11 * LAUNCH_LIFT * L.v0.y,
-          h00 * L.restP.z + h10 * LAUNCH_LIFT * L.va.z + h01 * L.p0.z + h11 * LAUNCH_LIFT * L.v0.z
+          h00 * L.restP.x + h10 * LAUNCH_LIFT * L.va.x + h01 * L.pEnd.x + h11 * LAUNCH_LIFT * L.vEnd.x,
+          h00 * L.restP.y + h10 * LAUNCH_LIFT * L.va.y + h01 * L.pEnd.y + h11 * LAUNCH_LIFT * L.vEnd.y,
+          h00 * L.restP.z + h10 * LAUNCH_LIFT * L.va.z + h01 * L.pEnd.z + h11 * LAUNCH_LIFT * L.vEnd.z
         );
         _lq1.copy(L.restQ).slerp(L.q0, k);
-        _lq2.setFromAxisAngle(L.axis, 2 * Math.PI * (1 - k));
-        this.coinVisual.quaternion.copy(_lq1).multiply(_lq2);
+        _lq2.setFromAxisAngle(L.axis, L.wMag * t + 2 * Math.PI * (1 - k));
+        _lq2.multiply(_lq1); // 世界系自旋在左：与 cannon 的角速度积分方式一致
+        this.coinVisual.quaternion.copy(_lq2);
       } else {
-        // 飞行段：真实抛物线 + 真实自旋，飞行时间轴按 launchFlightTime 从提前渐近收敛回延迟画面
-        const ft = launchFlightTime(t, this.renderDelay);
-        this.coinVisual.position.set(
-          L.p0.x + L.v0.x * ft + 0.5 * L.g.x * ft * ft,
-          L.p0.y + L.v0.y * ft + 0.5 * L.g.y * ft * ft,
-          L.p0.z + L.v0.z * ft + 0.5 * L.g.z * ft * ft
-        );
-        _lq2.setFromAxisAngle(L.axis, L.wMag * ft);
-        this.coinVisual.quaternion.copy(L.q0).multiply(_lq2);
+        // 飞行段：从真实变换历史按「提前的飞行时间」取样——包含真实碰撞/阻尼/积分细节，
+        // 时间轴渐近汇入延迟画面，结束点与画面重合，无跳变
+        const ft = launchFlightTime(t, L.delay);
+        if (this._coinStateAt(L.s0 + ft)) {
+          this.coinVisual.position.copy(this._tmpP);
+          this.coinVisual.quaternion.copy(this._tmpQ);
+        }
       }
     }
 

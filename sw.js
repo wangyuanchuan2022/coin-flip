@@ -1,5 +1,5 @@
 // sw.js — Service Worker：预缓存资源，cache-first + 后台更新（移动端二次访问零下载，支持离线）
-const CACHE = 'coin-flip-v16'; // v16: 起抛动画重做——沿本次真实抛物线提前渲染（抬手段+真实自旋飞行段），替换假上浮补间
+const CACHE = 'coin-flip-v17'; // v17: 起抛自旋改世界系左乘修复方向/卡顿；飞行段改真实历史取样（含碰撞阻尼）消除下落突跳
 const ASSETS = ['./', './index.html', './dist/bundle.js'];
 
 self.addEventListener('install', (e) => {
